@@ -1,0 +1,5 @@
+# Runtime deps for the agent harness and demo app (training deps: requirements-train.txt)
+openai
+requests
+fastapi
+uvicorn

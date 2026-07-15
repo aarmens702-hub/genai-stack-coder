@@ -1,0 +1,277 @@
+"""Minimal coding-agent harness for genai-coder (Ollama, OpenAI-compatible API).
+
+The model replies in plain text with ONE JSON action object per turn (a
+ReAct-style protocol -- no native tool calling, since fine-tuning + GGUF
+quantization may have degraded the tool-call token template). The harness
+extracts the action, executes it inside --workdir, appends the result as an
+"OBSERVATION:" user message, and loops until "done" or --max-iters.
+
+Usage:
+  python agent\\agent.py --task "build X" --workdir path [--model genai-coder] [--max-iters 25]
+  python agent\\agent.py --task-file agent\\demo_task.md --workdir path
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+BASE_URL = "http://localhost:11434/v1"  # Ollama's OpenAI-compatible endpoint
+API_KEY = "ollama"
+TEMPERATURE = 0.2
+OBS_LIMIT = 4000      # max chars of an observation fed back to the model
+PRINT_LIMIT = 300     # max chars of action args echoed to the terminal
+COMMAND_TIMEOUT = 60  # seconds
+
+# Commands containing any of these substrings (case-insensitive) are refused.
+# Deliberately a dumb, visible list -- not a security sandbox, just a tripwire
+# against obviously destructive commands from a confused model.
+DENYLIST = [
+    "rm -rf",
+    "rm -fr",
+    "remove-item -recurse",
+    "rmdir /s",
+    "del /s",
+    "format-volume",
+    "format c:",
+    "mkfs",
+    "diskpart",
+    "shutdown",
+    "stop-computer",
+    "restart-computer",
+    "reg delete",
+]
+
+SYSTEM_PROMPT = """You are genai-coder, an autonomous coding agent. You will be given a TASK.
+Complete it step by step using tools. Your working directory is:
+{workdir}
+
+RULES:
+- Every reply must contain EXACTLY ONE JSON action object, and nothing after it.
+- You may write one short line of reasoning before the JSON.
+- The JSON must be valid: inside strings, escape newlines as \\n and double quotes as \\".
+- All file paths are relative to the working directory. Paths outside it are rejected.
+- After every action you receive an OBSERVATION message with the result. Read it before acting again.
+
+TOOLS (use exactly these shapes):
+{"tool": "list_dir", "args": {"path": "."}}
+{"tool": "read_file", "args": {"path": "file.py"}}
+{"tool": "write_file", "args": {"path": "file.py", "content": "full file content"}}
+{"tool": "run_command", "args": {"cmd": "python file.py"}}
+{"tool": "done", "args": {"message": "what you built and how to run it"}}
+
+NOTES:
+- write_file overwrites the whole file, so always send the complete file content.
+- run_command runs in PowerShell inside the working directory with a 60 second
+  timeout. Never start long-running servers with it; verify with quick commands.
+- Verify your work with run_command (run the script, check imports) before "done".
+- Use "done" only when the TASK is fully complete.
+
+EXAMPLE REPLY:
+I will create the script first.
+{"tool": "write_file", "args": {"path": "hello.py", "content": "print('hi')\\n"}}
+"""
+
+
+def truncate(text, limit):
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n...[truncated " + str(len(text) - limit) + " chars]"
+
+
+def extract_action(text):
+    """Return the first JSON object in text that has a "tool" key, else None.
+
+    Handles bare JSON, JSON inside code fences, JSON preceded by prose, and
+    (via a cleanup pass) trailing commas.
+    """
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(text):
+        if ch != "{":
+            continue
+        chunk = text[i:]
+        cleaned = re.sub(r",\s*([}\]])", r"\1", chunk)  # drop trailing commas
+        for candidate in (chunk, cleaned):
+            try:
+                obj, _ = decoder.raw_decode(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and "tool" in obj:
+                return obj
+            break  # parsed fine but not an action; keep scanning from next {
+    return None
+
+
+def resolve_inside(workdir, path):
+    """Resolve path (relative to workdir) to an absolute Path.
+
+    Returns None if the resolved path escapes workdir.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        p = Path(workdir) / p
+    p = Path(os.path.realpath(p))
+    root = os.path.normcase(os.path.realpath(workdir))
+    child = os.path.normcase(str(p))
+    if child == root or child.startswith(root + os.sep):
+        return p
+    return None
+
+
+def path_rejected(path, workdir):
+    return (
+        "ERROR: path " + repr(str(path)) + " resolves outside the working directory "
+        + str(workdir) + ". All paths must stay inside the working directory."
+    )
+
+
+def tool_read_file(args, workdir):
+    raw = args.get("path")
+    if not raw:
+        return "ERROR: read_file needs a 'path' arg."
+    path = resolve_inside(workdir, str(raw))
+    if path is None:
+        return path_rejected(raw, workdir)
+    if not path.is_file():
+        return "ERROR: file not found: " + str(raw)
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def tool_write_file(args, workdir):
+    raw = args.get("path")
+    if not raw:
+        return "ERROR: write_file needs a 'path' arg."
+    path = resolve_inside(workdir, str(raw))
+    if path is None:
+        return path_rejected(raw, workdir)
+    content = str(args.get("content", ""))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return "Wrote " + str(len(content)) + " chars to " + str(raw)
+
+
+def tool_list_dir(args, workdir):
+    raw = args.get("path") or "."
+    path = resolve_inside(workdir, str(raw))
+    if path is None:
+        return path_rejected(raw, workdir)
+    if not path.is_dir():
+        return "ERROR: not a directory: " + str(raw)
+    entries = sorted(os.listdir(path))
+    if not entries:
+        return "(empty directory)"
+    return "\n".join(name + ("/" if (path / name).is_dir() else "") for name in entries)
+
+
+def tool_run_command(args, workdir):
+    cmd = str(args.get("cmd", "")).strip()
+    if not cmd:
+        return "ERROR: run_command needs a 'cmd' arg."
+    lowered = cmd.lower()
+    for pattern in DENYLIST:
+        if pattern in lowered:
+            return "ERROR: command blocked by denylist pattern " + repr(pattern) + "."
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+            cwd=str(workdir),
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=COMMAND_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return "ERROR: command timed out after " + str(COMMAND_TIMEOUT) + "s: " + cmd
+    return (
+        "exit code: " + str(proc.returncode)
+        + "\nstdout:\n" + proc.stdout
+        + "\nstderr:\n" + proc.stderr
+    )
+
+
+def run_tool(tool, args, workdir):
+    """Execute one non-done tool action; always return an observation string."""
+    try:
+        if tool == "read_file":
+            return tool_read_file(args, workdir)
+        if tool == "write_file":
+            return tool_write_file(args, workdir)
+        if tool == "list_dir":
+            return tool_list_dir(args, workdir)
+        if tool == "run_command":
+            return tool_run_command(args, workdir)
+        return (
+            "ERROR: unknown tool " + repr(tool)
+            + ". Valid tools: read_file, write_file, list_dir, run_command, done."
+        )
+    except Exception as e:  # keep the loop alive no matter what a tool does
+        return "ERROR: " + type(e).__name__ + ": " + str(e)
+
+
+def run_agent(client, model, task, workdir, max_iters):
+    """Drive the model until it says done or max_iters is hit. True if done."""
+    workdir = Path(os.path.realpath(str(workdir)))
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT.replace("{workdir}", str(workdir))},
+        {"role": "user", "content": "TASK:\n" + task},
+    ]
+    for i in range(1, max_iters + 1):
+        resp = client.chat.completions.create(
+            model=model, messages=messages, temperature=TEMPERATURE
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+        messages.append({"role": "assistant", "content": reply})
+
+        action = extract_action(reply)
+        if action is None:
+            print("[" + str(i) + "/" + str(max_iters) + "] no valid action in reply:")
+            print("  " + truncate(reply, PRINT_LIMIT).replace("\n", "\n  "))
+            obs = (
+                "No valid JSON action found in your reply. Respond with exactly one "
+                'JSON object, e.g. {"tool": "list_dir", "args": {"path": "."}}'
+            )
+        else:
+            tool = action.get("tool")
+            args = action.get("args") if isinstance(action.get("args"), dict) else {}
+            print(
+                "[" + str(i) + "/" + str(max_iters) + "] " + str(tool) + " "
+                + truncate(json.dumps(args), PRINT_LIMIT)
+            )
+            if tool == "done":
+                print("\n[done] " + str(args.get("message", "")))
+                return True
+            obs = run_tool(tool, args, workdir)
+
+        obs = truncate(obs, OBS_LIMIT)
+        print("  observation: " + obs.replace("\n", "\n  "))
+        messages.append({"role": "user", "content": "OBSERVATION:\n" + obs})
+
+    print("\n[stopped] reached max iterations (" + str(max_iters) + ") without done.")
+    return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Minimal coding-agent harness for genai-coder.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--task", help="task description text")
+    group.add_argument("--task-file", help="path to a file containing the task")
+    parser.add_argument("--workdir", required=True, help="directory the agent works in (created if missing)")
+    parser.add_argument("--model", default="genai-coder")
+    parser.add_argument("--max-iters", type=int, default=25)
+    args = parser.parse_args()
+
+    task = args.task or Path(args.task_file).read_text(encoding="utf-8")
+    os.makedirs(args.workdir, exist_ok=True)
+
+    from openai import OpenAI  # imported here so tests never need the package
+
+    client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
+    ok = run_agent(client, args.model, task, args.workdir, args.max_iters)
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()
