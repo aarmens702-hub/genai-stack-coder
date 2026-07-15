@@ -17,4 +17,6 @@ data/raw/
 
 # Local tools & secrets
 llama.cpp-bin/
+llama.cpp-src/
+unsloth_compiled_cache/
 .env
