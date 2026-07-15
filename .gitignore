@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Model artifacts — never in git
+models/
+outputs/
+runs/
+*.gguf
+*.safetensors
+*.bin
+
+# Raw harvested repos (rebuilt by scripts/01_harvest.py)
+data/raw/
+
+# Local tools & secrets
+llama.cpp-bin/
+.env
