@@ -2,6 +2,14 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-15 — Dataset built: 6,665 pairs
+
+- Pair generation: 14,192 raw pairs from 3,190 snippets in ~3.7h (0.24 snippets/s on the A2000). Bonus: Ollama's schema enforcement doesn't cap array length, so the teacher often returned >2 questions per snippet — free augmentation, kept.
+- Filter results: 6,665 kept. Drops: 5,420 openai-share rebalance, 1,455 dup questions, **347 deprecated-API answers** (the filter catching legacy cookbook code — exactly why it exists), 297 non-parsing, 6 secrets, 5 length.
+- Final mix: 60% openai / 37% anthropic / 3% ollama; 26% template / 74% teacher questions. Split grouped by snippet: 5,973 train / 348 val / 344 test.
+- 20-pair audit: PASS. Answers dense in current surfaces (responses API, vector_stores.search, messages.stream). Known blemishes: some template questions grammatically clunky; a few teacher questions generic-Python. Acceptable noise.
+- Derived data (data/processed) now gitignored — rebuilt deterministically by scripts 01–04 from pinned refs.
+
 ## 2026-07-14 — Phase 0 smoke test PASSED + baseline evidence captured
 
 - 4-bit Qwen2.5-Coder-7B loads and generates on the A2000: **peak VRAM 5.74 GB** of 12 — ample training headroom. Unsloth banner confirms full wiring: CUDA 8.6, bf16 TRUE, xformers 0.0.34, Triton 3.6.
