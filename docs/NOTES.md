@@ -2,6 +2,12 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-14 — Phase 0 smoke test PASSED + baseline evidence captured
+
+- 4-bit Qwen2.5-Coder-7B loads and generates on the A2000: **peak VRAM 5.74 GB** of 12 — ample training headroom. Unsloth banner confirms full wiring: CUDA 8.6, bf16 TRUE, xformers 0.0.34, Triton 3.6.
+- **Golden baseline sample:** asked to "stream a chat response from the OpenAI API", the *base* model produced `openai.api_key = ...` + `openai.ChatCompletion.create(stream=True)` — the exact API removed in openai-python 1.0 (Nov 2023). The project's premise, demonstrated on prompt #1. Keep this as the canonical "before" example in the README.
+- Confirms the eval gate: base model measurably fails SDK-currency prompts → real signal to improve.
+
 ## 2026-07-14 — Windows dependency trap (hit + resolved)
 
 - Installing per the original recipe (torch 2.8 → triton → xformers → unsloth) broke the env twice in one pass: latest xformers (0.0.35) silently **upgraded torch to 2.11+cu128**, then unsloth (which caps `torch<2.11`) **downgraded torch to 2.10.0 from PyPI — a CPU-only build on Windows**. Net result: no CUDA.
