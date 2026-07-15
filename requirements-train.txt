@@ -1,0 +1,24 @@
+# Windows-native QLoRA training stack — pinned as ONE coherent set (verified 2026-07-14).
+#
+# Install order matters:
+#   1. pip install torch==2.10.0+cu128 torchvision==0.25.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+#   2. pip install triton-windows==3.6.0.post26
+#   3. pip install --no-deps xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128
+#   4. pip install unsloth==2026.7.2
+#
+# Why so strict: on Windows, PyPI torch wheels are CPU-only. Any pip resolve that
+# touches torch (xformers without --no-deps, a bare `pip install unsloth`) can
+# silently replace the CUDA build. unsloth 2026.7.2 caps torch<2.11; its own
+# extras table pairs torch 2.10.0/cu128 with xformers 0.0.34; triton-windows 3.6.x
+# pairs with torch 2.10.
+torch==2.10.0+cu128
+torchvision==0.25.0+cu128
+triton-windows==3.6.0.post26
+xformers==0.0.34
+unsloth==2026.7.2
+unsloth_zoo==2026.7.2
+bitsandbytes==0.49.2
+transformers==5.5.0
+trl==0.24.0
+peft==0.19.1
+torchao==0.17.0

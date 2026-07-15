@@ -2,6 +2,12 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-14 — Windows dependency trap (hit + resolved)
+
+- Installing per the original recipe (torch 2.8 → triton → xformers → unsloth) broke the env twice in one pass: latest xformers (0.0.35) silently **upgraded torch to 2.11+cu128**, then unsloth (which caps `torch<2.11`) **downgraded torch to 2.10.0 from PyPI — a CPU-only build on Windows**. Net result: no CUDA.
+- Fix: pin the coherent set from unsloth's own extras table (`cu128onlytorch2100`): torch **2.10.0+cu128** + xformers **0.0.34** (installed `--no-deps` so it can't touch torch) + triton-windows **3.6.0.post26** (3.6.x pairs with torch 2.10). torchaudio removed (never needed).
+- Rule: on Windows, never let pip resolve torch transitively — PyPI torch wheels are CPU-only. Full pinned set lives in `requirements-train.txt`.
+
 ## 2026-07-14 — Project start
 
 - Plan approved: QLoRA fine-tune of Qwen2.5-Coder-7B-Instruct into a "GenAI-stack coder" (correct, current OpenAI/Anthropic/Ollama SDK code).
