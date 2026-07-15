@@ -12,8 +12,9 @@ runs/
 *.safetensors
 *.bin
 
-# Raw harvested repos (rebuilt by scripts/01_harvest.py)
+# Harvested/derived data (rebuilt by scripts/01–04 from pinned refs)
 data/raw/
+data/processed/
 
 # Local tools & secrets
 llama.cpp-bin/
