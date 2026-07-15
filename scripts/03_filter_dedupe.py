@@ -42,22 +42,29 @@ SECRET_RES = [
 
 # Deprecated / dead API surface per SDK. A pair whose ANSWER matches any of
 # these is dropped — we never train on the disease we're curing.
+# Verified against the pinned repos (see eval/assertions.py for the full
+# story): openai.api_key= and anthropic.Client() are STILL CURRENT and must
+# not be denied; engine= is only dead in its string-literal form.
 DEPRECATED = {
     "openai": [
         re.compile(r"openai\.ChatCompletion"),
+        re.compile(r"ChatCompletion\.a?create"),
         re.compile(r"openai\.Completion\b"),
         re.compile(r"openai\.Embedding\b"),
-        re.compile(r"openai\.api_key\s*="),
-        re.compile(r"\bengine\s*="),
+        re.compile(r"openai\.error\b"),
+        re.compile(r"openai\.api_base\b"),
+        re.compile(r"\bengine\s*=\s*[\"']"),
         re.compile(r"text-davinci|code-davinci|text-curie|text-babbage|text-ada-001"),
     ],
     "anthropic": [
         re.compile(r"HUMAN_PROMPT|AI_PROMPT"),
-        re.compile(r"anthropic\.Client\("),
         re.compile(r"client\.completions?\.create"),
+        re.compile(r"max_tokens_to_sample"),
         re.compile(r"claude-instant|claude-v?1\b|claude-2\b"),
     ],
-    "ollama": [],
+    "ollama": [
+        re.compile(r"ollama\.embeddings\(|client\.embeddings\("),
+    ],
 }
 
 
