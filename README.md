@@ -17,7 +17,7 @@ data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-
 
 - [x] Plan + repo scaffold
 - [x] Phase 0 — environment bootstrap (torch 2.10 cu128, Unsloth 2026.7.2, Ollama — all verified on GPU)
-- [ ] Phases 1–3 — data pipeline (harvest done: 3,190 pinned-source snippets; pairs + filter next)
+- [x] Phases 1–3 — data pipeline (3,190 snippets → 14,195 raw pairs → 6,665 clean: 5,973 train / 348 val / 344 test)
 - [ ] Phase 4 — QLoRA training (overnight run)
 - [ ] Phase 5 — eval: base vs tuned SDK-currency pass rates
 - [ ] Phase 6 — package: GGUF → `ollama run genai-coder`
