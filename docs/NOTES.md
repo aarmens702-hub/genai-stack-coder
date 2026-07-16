@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-16 — Phase 4 COMPLETE: full QLoRA run finished clean
+
+- 748/748 steps in 4h57m (avg 23.8 s/step incl. evals), **final train loss 0.59**, peak VRAM **9.79 GB** of 12. Adapter at `models/adapter/final`, checkpoints 600/748 kept.
+- Val-loss curve: 1.038 → 1.001 → 0.955 (best, epoch 0.8) → 0.965 → … → **0.985 (epoch 2.0)** — mild epoch-2 overfit as suspected mid-run. If the tuned benchmark underwhelms, score `checkpoint-600` (epoch ~1.6) against it; checkpoints kept for exactly this.
+- Full raw training log: `train/logs/full-run-20260715.raw.log`.
+- Next (automated): merge → GGUF Q4_K_M → `ollama create genai-coder` → rerun 50-prompt benchmark → results table.
+
 ## 2026-07-15 — Baseline scored, sanity gate passed, full training launched
 
 - **Baseline (base qwen2.5-coder:7b, 50-prompt benchmark): 6/50 = 12%** — openai 1/20 (5%), anthropic 1/20 (5%), ollama 4/10 (40%). This is the "before" row of the results table.
