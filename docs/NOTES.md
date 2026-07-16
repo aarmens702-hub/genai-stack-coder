@@ -8,6 +8,7 @@ Running log of decisions and findings. Newest first.
 - Val-loss curve: 1.038 → 1.001 → 0.955 (best, epoch 0.8) → 0.965 → … → **0.985 (epoch 2.0)** — mild epoch-2 overfit as suspected mid-run. If the tuned benchmark underwhelms, score `checkpoint-600` (epoch ~1.6) against it; checkpoints kept for exactly this.
 - Full raw training log: `train/logs/full-run-20260715.raw.log`.
 - Next (automated): merge → GGUF Q4_K_M → `ollama create genai-coder` → rerun 50-prompt benchmark → results table.
+- Packaging detour (05:00): background child processes that touch the full 15 GB f16 get killed 5–8 min in on this box — llama-quantize died twice at the *same tensor* (blk.24, ~4.1 GB written), then the `ollama create` CLI died during upload. Deterministic → resource ceiling on my child processes, not AV randomness. Fix: quantize inside the Ollama service (`ollama create --quantize q4_K_M` from the f16 GGUF), launched detached from the session's process tree. Also fixed a Windows-path `re.sub` bug (`\U` in replacement → use lambda repl).
 
 ## 2026-07-15 — Baseline scored, sanity gate passed, full training launched
 

@@ -21,3 +21,4 @@ llama.cpp-bin/
 llama.cpp-src/
 unsloth_compiled_cache/
 .env
+packaging/Modelfile
