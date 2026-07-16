@@ -74,8 +74,18 @@ def main():
     )
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
+    # Resume support: keep rows already scored so a killed run continues
+    # where it stopped instead of starting over.
     results = []
-    with open(out_path, "w", encoding="utf-8") as out:
+    if os.path.exists(out_path):
+        with open(out_path, encoding="utf-8") as f:
+            results = [json.loads(line) for line in f if line.strip()]
+        done = {r["id"] for r in results}
+        records = [r for r in records if r["id"] not in done]
+        if done:
+            print("resuming: %d already scored, %d to go" % (len(done), len(records)))
+
+    with open(out_path, "a", encoding="utf-8") as out:
         for i, rec in enumerate(records, 1):
             try:
                 answer = query(args.model, rec["prompt"])
