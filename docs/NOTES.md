@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-16 — Phases 5+6 COMPLETE: 12% → 72% on the SDK-currency benchmark
+
+- **genai-coder (tuned, Q4_K_M via Ollama): 36/50 = 72%** vs base 6/50 = 12%. Per SDK: openai 5%→70%, anthropic 5%→75%, ollama 40%→70%. Regressions vs base: `openai-20`, `ollama-06` (2 lost vs 32 gained — inspect when convenient).
+- Packaging fight (~40 min lost): every client-side process bulk-reading the 15 GB f16 was silently killed — llama-quantize twice *at the same tensor*, the `ollama create` CLI twice (even fully detached), no stderr, no event-log trace. Suspected EDR mass-read heuristic; separately, session background tasks get capped ~5–8 min. **Working path:** POST `/api/create` to the Ollama server referencing the already-uploaded blob digest with `quantize: q4_K_M` — all heavy I/O happens in the long-lived server process, which also *finishes the job even if the requesting client dies*. Fallback script: `packaging/create_via_api.py`.
+- `eval/run_eval.py` now resumes from existing rows (kill-resilient); tuned eval ran detached and completed 50/50.
+- `ollama run genai-coder` is live. Next: Phase 7 agent harness on the tuned model → Phase 8 finale.
+
 ## 2026-07-16 — Phase 4 COMPLETE: full QLoRA run finished clean
 
 - 748/748 steps in 4h57m (avg 23.8 s/step incl. evals), **final train loss 0.59**, peak VRAM **9.79 GB** of 12. Adapter at `models/adapter/final`, checkpoints 600/748 kept.

@@ -18,12 +18,24 @@ data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-
 - [x] Plan + repo scaffold
 - [x] Phase 0 — environment bootstrap (torch 2.10 cu128, Unsloth 2026.7.2, Ollama — all verified on GPU)
 - [x] Phases 1–3 — data pipeline (3,190 snippets → 14,195 raw pairs → 6,665 clean: 5,973 train / 348 val / 344 test)
-- [ ] Phase 4 — QLoRA training (overnight run)
-- [ ] Phase 5 — eval: base vs tuned SDK-currency pass rates
-- [ ] Phase 6 — package: GGUF → `ollama run genai-coder`
+- [x] Phase 4 — QLoRA training (748 steps / 2 epochs, 4h57m on the A2000, final train loss 0.59)
+- [x] Phase 5 — eval: base vs tuned SDK-currency pass rates (**12% → 72%**, table below)
+- [x] Phase 6 — package: GGUF Q4_K_M → `ollama run genai-coder`
 - [ ] Phase 7 — agent harness
 - [ ] Phase 8 — finale: model builds its own chat app
-- [ ] Results table here
+
+## Results
+
+50-prompt SDK-currency benchmark; both models served by Ollama at Q4_K_M, temp 0.2, identical system prompt (`eval/run_eval.py`).
+
+| SDK | base qwen2.5-coder:7b | genai-coder (tuned) |
+|---|---|---|
+| openai | 1/20 (5%) | **14/20 (70%)** |
+| anthropic | 1/20 (5%) | **15/20 (75%)** |
+| ollama | 4/10 (40%) | **7/10 (70%)** |
+| **total** | **6/50 (12%)** | **36/50 (72%)** |
+
+Canonical "before" example — the base model answers a streaming question with `openai.ChatCompletion.create(stream=True)`, removed from the SDK in Nov 2023; the tuned model instantiates the current `OpenAI()` client and streams with the `client.chat.completions.stream(...)` helper.
 
 ## Layout
 
