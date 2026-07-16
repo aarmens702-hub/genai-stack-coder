@@ -8,6 +8,8 @@ Running log of decisions and findings. Newest first.
 - Spot-checked failures are genuine, not scoring artifacts: base emits `anthropic.HUMAN_PROMPT` + `client.completions.create(model="claude-2")` (removed 2023) and hallucinates a nonexistent `openai_tools.pydantic_tool` package for tool-calling.
 - Sanity run (`--sanity`, 60 steps on 100 examples): loss 1.10 → ~0.10, peak VRAM **8.88 GB** of 12, ~19 s/optimizer step, clean exit. Gate passed.
 - Full 2-epoch run launched 23:39 (~747 steps, ETA ~4.5 h → early morning 07-16). Val eval every 100 steps on 200 examples; checkpoints every 200 steps, keep 2.
+- Val-loss curve mid-run: 1.038 (step 100) → 1.001 → 0.955 → 0.965 (step 400, epoch 1.07) — slight uptick at the epoch-2 boundary, watch the tail.
+- **Unattended mode armed** (machine may be shut down by staff): trainer now auto-resumes from the newest `models/adapter/checkpoint-*` when rerun; packaging scripts staged (`packaging/merge_lora.py` → `packaging/make_ollama.py` → `eval/run_eval.py --model genai-coder` runs automatically after training); training log snapshotted to `train/logs/`; milestones committed + pushed as they land. **If the box died mid-training: log in, rerun `.venv\Scripts\python.exe train\train_unsloth.py` — it resumes, losing ≤200 steps (~85 min).**
 
 ## 2026-07-15 — Dataset built: 6,665 pairs
 

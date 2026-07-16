@@ -103,7 +103,10 @@ def main():
         response_part="<|im_start|>assistant\n",
     )
 
-    result = trainer.train()
+    # Unattended-run insurance: resume from the newest checkpoint after a
+    # crash/forced logoff. Delete models/adapter/checkpoint-* for a fresh run.
+    ckpts = [] if args.sanity else sorted(OUT.glob("checkpoint-*"))
+    result = trainer.train(resume_from_checkpoint=True if ckpts else None)
     print(f"final loss: {result.training_loss:.4f}")
     print(f"peak VRAM: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
 
