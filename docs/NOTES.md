@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-15 — Baseline scored, sanity gate passed, full training launched
+
+- **Baseline (base qwen2.5-coder:7b, 50-prompt benchmark): 6/50 = 12%** — openai 1/20 (5%), anthropic 1/20 (5%), ollama 4/10 (40%). This is the "before" row of the results table.
+- Spot-checked failures are genuine, not scoring artifacts: base emits `anthropic.HUMAN_PROMPT` + `client.completions.create(model="claude-2")` (removed 2023) and hallucinates a nonexistent `openai_tools.pydantic_tool` package for tool-calling.
+- Sanity run (`--sanity`, 60 steps on 100 examples): loss 1.10 → ~0.10, peak VRAM **8.88 GB** of 12, ~19 s/optimizer step, clean exit. Gate passed.
+- Full 2-epoch run launched 23:39 (~747 steps, ETA ~4.5 h → early morning 07-16). Val eval every 100 steps on 200 examples; checkpoints every 200 steps, keep 2.
+
 ## 2026-07-15 — Dataset built: 6,665 pairs
 
 - Pair generation: 14,192 raw pairs from 3,190 snippets in ~3.7h (0.24 snippets/s on the A2000). Bonus: Ollama's schema enforcement doesn't cap array length, so the teacher often returned >2 questions per snippet — free augmentation, kept.
