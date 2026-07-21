@@ -26,6 +26,10 @@ OBS_LIMIT = 4000      # max chars of an observation fed back to the model
 PRINT_LIMIT = 300     # max chars of action args echoed to the terminal
 COMMAND_TIMEOUT = 60  # seconds
 
+# Last content written per resolved path, so the observation can warn the model
+# when it rewrites a file unchanged (a small model stuck in a fix-nothing loop).
+LAST_WRITES = {}
+
 # Commands containing any of these substrings (case-insensitive) are refused.
 # Deliberately a dumb, visible list -- not a security sandbox, just a tripwire
 # against obviously destructive commands from a confused model.
@@ -68,6 +72,9 @@ NOTES:
 - run_command runs in PowerShell inside the working directory with a 60 second
   timeout. Never start long-running servers with it; verify with quick commands.
 - Verify your work with run_command (run the script, check imports) before "done".
+- If run_command fails, the traceback names the exact file and line. First
+  read_file that file to see what is really in it, then rewrite THAT file --
+  the one named in the traceback, not another file.
 - Use "done" only when the TASK is fully complete.
 
 EXAMPLE REPLY:
@@ -148,9 +155,18 @@ def tool_write_file(args, workdir):
     if path is None:
         return path_rejected(raw, workdir)
     content = str(args.get("content", ""))
+    repeat = LAST_WRITES.get(str(path)) == content
+    LAST_WRITES[str(path)] = content
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
-    return "Wrote " + str(len(content)) + " chars to " + str(raw)
+    msg = "Wrote " + str(len(content)) + " chars to " + str(raw)
+    if repeat:
+        msg += (
+            "\nWARNING: this content is byte-identical to your previous write to this"
+            " file. Writing the same file again cannot fix the error. Use read_file on"
+            " the file and line named in the last error message, and fix that file."
+        )
+    return msg
 
 
 def tool_list_dir(args, workdir):
@@ -211,16 +227,17 @@ def run_tool(tool, args, workdir):
         return "ERROR: " + type(e).__name__ + ": " + str(e)
 
 
-def run_agent(client, model, task, workdir, max_iters):
+def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
     """Drive the model until it says done or max_iters is hit. True if done."""
     workdir = Path(os.path.realpath(str(workdir)))
+    LAST_WRITES.clear()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT.replace("{workdir}", str(workdir))},
         {"role": "user", "content": "TASK:\n" + task},
     ]
     for i in range(1, max_iters + 1):
         resp = client.chat.completions.create(
-            model=model, messages=messages, temperature=TEMPERATURE
+            model=model, messages=messages, temperature=temperature
         )
         reply = (resp.choices[0].message.content or "").strip()
         messages.append({"role": "assistant", "content": reply})
@@ -261,6 +278,7 @@ def main():
     parser.add_argument("--workdir", required=True, help="directory the agent works in (created if missing)")
     parser.add_argument("--model", default="genai-coder")
     parser.add_argument("--max-iters", type=int, default=25)
+    parser.add_argument("--temperature", type=float, default=TEMPERATURE)
     args = parser.parse_args()
 
     task = args.task or Path(args.task_file).read_text(encoding="utf-8")
@@ -269,7 +287,8 @@ def main():
     from openai import OpenAI  # imported here so tests never need the package
 
     client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
-    ok = run_agent(client, args.model, task, args.workdir, args.max_iters)
+    ok = run_agent(client, args.model, task, args.workdir, args.max_iters,
+                   temperature=args.temperature)
     sys.exit(0 if ok else 1)
 
 

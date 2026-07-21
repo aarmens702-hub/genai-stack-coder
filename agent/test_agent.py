@@ -138,6 +138,21 @@ def test_scripted_session():
         assert len(obs_msgs) == 2  # one per executed action before done
 
 
+def test_repeated_write_warns():
+    with tempfile.TemporaryDirectory() as wd:
+        same = json.dumps({"tool": "write_file",
+                           "args": {"path": "a.py", "content": "x = await f()\n"}})
+        client = FakeClient([same, same, json.dumps({"tool": "done", "args": {"message": "d"}})])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
+        assert ok is True
+        sent = client.last_kwargs["messages"]
+        obs = [m["content"] for m in sent
+               if m["role"] == "user" and m["content"].startswith("OBSERVATION:")]
+        assert len(obs) == 2
+        assert "byte-identical" not in obs[0]
+        assert "byte-identical" in obs[1]
+
+
 def test_truncation():
     long_obs = "x" * 5000
     out = agent.truncate(long_obs, agent.OBS_LIMIT)
@@ -157,6 +172,7 @@ TESTS = [
     test_done_ends_loop,
     test_max_iters_stops,
     test_scripted_session,
+    test_repeated_write_warns,
     test_truncation,
 ]
 

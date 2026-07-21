@@ -6,18 +6,33 @@ fastapi + uvicorn, no build tools.
 
 ## Step 1: write main.py (FastAPI backend)
 
-- Imports: `fastapi`, `fastapi.responses` (FileResponse, StreamingResponse),
-  `requests`, `json`, `uvicorn`.
-- `GET /` returns `FileResponse("index.html")`.
-- `POST /chat` accepts a JSON body `{"message": "..."}` and streams plain text back:
+- Imports — use exactly these and no others:
+  `from fastapi import FastAPI, Request`,
+  `from fastapi.responses import FileResponse, StreamingResponse`,
+  plus `import requests`, `import json`, `import uvicorn`.
+- `GET /` — copy these two lines exactly:
+  ```python
+  @app.get("/")
+  async def serve_index():
+  ```
+  and return `FileResponse("index.html")` from it.
+- `POST /chat` — copy these two lines exactly:
+  ```python
+  @app.post("/chat")
+  async def chat(request: Request):
+  ```
+  (it MUST be `async def` because it awaits the body). First line of the body:
+  `body = await request.json()`; the user message is `body["message"]`.
+  Stream plain text back:
   1. POST to `http://localhost:11434/api/generate` with
      `json={"model": "genai-coder", "prompt": message, "stream": True}` using
      `requests.post(..., stream=True)`.
   2. Ollama replies with one JSON object per line, like
      `{"response": "next chunk", "done": false}`.
   3. Return `StreamingResponse(generator, media_type="text/plain")` where the
-     generator loops over `resp.iter_lines()`, parses each line with
-     `json.loads`, and yields the `"response"` value.
+     generator is a plain inner `def` (NOT async) that loops over
+     `resp.iter_lines()`, parses each line with `json.loads`, and yields the
+     `"response"` value.
 - At the bottom add:
   `if __name__ == "__main__": uvicorn.run(app, host="127.0.0.1", port=8000)`
 
