@@ -227,16 +227,26 @@ def tool_run_command(args, workdir):
     for pattern in DENYLIST:
         if pattern in lowered:
             return "ERROR: command blocked by denylist pattern " + repr(pattern) + "."
+    proc = subprocess.Popen(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+        cwd=str(workdir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+    )
     try:
-        proc = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
-            cwd=str(workdir),
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=COMMAND_TIMEOUT,
-        )
+        out, err = proc.communicate(timeout=COMMAND_TIMEOUT)
     except subprocess.TimeoutExpired:
+        # kill the whole tree: killing just the powershell wrapper leaves its
+        # children (e.g. a started server) orphaned and holding ports
+        subprocess.run(
+            ["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True
+        )
+        try:
+            proc.communicate(timeout=5)
+        except Exception:
+            pass
         return (
             "ERROR: command timed out after " + str(COMMAND_TIMEOUT) + "s: " + cmd
             + "\nIf this command starts a server, run_command can never verify it"
@@ -245,8 +255,8 @@ def tool_run_command(args, workdir):
         )
     return (
         "exit code: " + str(proc.returncode)
-        + "\nstdout:\n" + proc.stdout
-        + "\nstderr:\n" + proc.stderr
+        + "\nstdout:\n" + out
+        + "\nstderr:\n" + err
     )
 
 
