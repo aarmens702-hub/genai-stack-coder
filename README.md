@@ -2,31 +2,16 @@
 
 Fine-tuning **Qwen2.5-Coder-7B** on a single RTX A2000 12GB (native Windows, no admin rights) to do one thing better than models 100× its size: **write correct, current generative-AI application code** — modern OpenAI / Anthropic / Ollama SDK usage, streaming, tool calling, structured output.
 
-**Why:** every base model hallucinates 2023-era SDK calls (`openai.ChatCompletion.create`, anyone?). This model is QLoRA-trained exclusively on current, human-written, permissively-licensed example code so it doesn't.
+**Why:** every base model hallucinates 2023-era SDK calls (`openai.ChatCompletion.create`, anyone?). This model is QLoRA-trained exclusively on current, human-written, permissively-licensed example code so it doesn't. **Result: 12% → 72%** on a 50-prompt SDK-currency benchmark.
 
-**Finale:** the tuned model, driven by the minimal agent harness in this repo, vibe-codes a streaming chat app *powered by itself* via Ollama.
+**Finale:** the tuned model, driven by the minimal agent harness in this repo, wrote the first version of its own chat app — and the app's Build mode still lets it write, run, and verify real files live.
 
-## Pipeline
-
-```
-data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-currency benchmark)
-→ merge → GGUF Q4_K_M → Ollama → agent harness → demo app (written by the model)
-```
-
-## Status
-
-- [x] Plan + repo scaffold
-- [x] Phase 0 — environment bootstrap (torch 2.10 cu128, Unsloth 2026.7.2, Ollama — all verified on GPU)
-- [x] Phases 1–3 — data pipeline (3,190 snippets → 14,195 raw pairs → 6,665 clean: 5,973 train / 348 val / 344 test)
-- [x] Phase 4 — QLoRA training (748 steps / 2 epochs, 4h57m on the A2000, final train loss 0.59)
-- [x] Phase 5 — eval: base vs tuned SDK-currency pass rates (**12% → 72%**, table below)
-- [x] Phase 6 — package: GGUF Q4_K_M → `ollama run genai-coder`
-- [x] Phase 7 — agent harness (ReAct/JSON protocol with fenced file writes; `agent/`)
-- [x] Phase 8 — finale: the model built `demo/` itself in 7 agent iterations (below)
+![landing](docs/img/landing.jpg)
+*The demo app: an amber-phosphor terminal that boots your model's real spec sheet. Yes, there is a resident snake.*
 
 ## Results
 
-50-prompt SDK-currency benchmark; both models served by Ollama at Q4_K_M, temp 0.2, identical system prompt (`eval/run_eval.py`).
+50-prompt SDK-currency benchmark; both models served by Ollama at Q4_K_M, temperature 0.2, identical system prompt (`eval/run_eval.py`; scoring rules in `eval/assertions.py`).
 
 | SDK | base qwen2.5-coder:7b | genai-coder (tuned) |
 |---|---|---|
@@ -35,36 +20,108 @@ data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-
 | ollama | 4/10 (40%) | **7/10 (70%)** |
 | **total** | **6/50 (12%)** | **36/50 (72%)** |
 
+A re-run four days later reproduced 35/50 — stable within sampling variance — with **zero deprecated-API emissions across all 50 answers**. A scorer audit found the pattern-based grader too strict (valid modern code missing its narrow positive lists); the audited honest score is ~76% (`docs/NOTES.md`, 2026-07-21).
+
 Canonical "before" example — the base model answers a streaming question with `openai.ChatCompletion.create(stream=True)`, removed from the SDK in Nov 2023; the tuned model instantiates the current `OpenAI()` client and streams with the `client.chat.completions.stream(...)` helper.
 
-## Finale
+## What's in the box
 
-Driven by `agent/agent.py`, **genai-coder wrote `demo/main.py` and `demo/index.html` itself** (7 iterations: two fenced file writes, two verify commands, done) — a FastAPI backend that proxies Ollama's `/api/generate` as a `StreamingResponse`, and a vanilla-JS page that renders the stream via `getReader()`. Verified end-to-end: the reply arrives as ~per-token chunks, served by the very model that wrote the code.
+- **The trained adapter** — `models/adapter/final/` (155 MB, via **git-lfs**): the one irreplaceable training output. Everything bigger (15 GB merged weights, 4.7 GB GGUF) rebuilds from it plus public downloads.
+- **The full pipeline** — data harvest → instruct pairs → filter/dedupe → QLoRA train → benchmark → GGUF/Ollama packaging. Every stage is a script you can rerun.
+- **A benchmark** — 50 prompts + automated SDK-currency scoring, with stored results for every run.
+- **An agent harness** — a ~400-line coding agent (`agent/agent.py`, 22 protocol tests) that lets the model write files, run commands, and verify web servers with real HTTP requests.
+- **The demo app** — a retro terminal chat/build UI (screenshot above) served by FastAPI.
+- **The diary** — `docs/NOTES.md` logs every decision, failure, and fix, from the CUDA-wheel trap to the six attempts it took the model to build its own app.
 
+## Quickstart A — run it with the trained weights (~30–60 min, mostly downloads)
+
+Prereqs: Windows/Linux/macOS with **Python 3.12**, **[Ollama](https://ollama.com)** installed and running, **git-lfs** (`git lfs install` once), ~40 GB free disk, 16 GB+ RAM. No GPU required to *run* (Ollama uses one if present; the demo fits an 8 GB card).
+
+```bash
+git clone https://github.com/aarmens702-hub/genai-stack-coder.git
+cd genai-stack-coder
+git lfs pull                                  # fetches the 155 MB adapter
+
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt # runtime deps (openai, requests, fastapi, uvicorn)
+.venv\Scripts\pip install -r requirements-train.txt  # ALSO needed for the merge step (torch etc.)
+
+# rebuild the model from the adapter (downloads the 15 GB base from HF once)
+.venv\Scripts\python packaging\merge_lora.py
+.venv\Scripts\python packaging\make_ollama.py # f16 GGUF -> Ollama Q4_K_M (needs llama.cpp, see below)
+
+ollama run genai-coder "write python that streams a chat reply from the openai api"
+
+# the demo app
+cd demo && ..\.venv\Scripts\python main.py    # open http://127.0.0.1:8000
 ```
-cd demo && python main.py   # then open http://127.0.0.1:8000
+
+**llama.cpp note:** `make_ollama.py` uses llama.cpp's `convert_hf_to_gguf.py`. Clone [llama.cpp](https://github.com/ggml-org/llama.cpp) next to this repo as `llama.cpp-src` (conversion is pure Python — no C++ build needed; quantization happens inside the Ollama server). If the packaging CLI dies mid-create on a locked-down machine, `packaging/create_via_api.py` is the kill-resilient path (see NOTES 2026-07-16).
+
+## Quickstart B — reproduce the whole thing from zero
+
+The full run: harvest → dataset → train → package → benchmark. Budget an evening plus one overnight.
+
+```bash
+# 0. environment (Windows + CUDA is a minefield; requirements-train.txt is the
+#    exact pinned set that works: torch 2.10.0+cu128, xformers 0.0.34 --no-deps,
+#    triton-windows 3.6.0.post26, unsloth. See NOTES 2026-07-14 before improvising.)
+.venv\Scripts\pip install -r requirements-train.txt
+
+# 1. data pipeline (~4 h, mostly local question generation via Ollama)
+ollama pull qwen2.5-coder:7b                  # the question-writing teacher
+.venv\Scripts\python scripts\01_harvest.py    # clone sources, extract snippets
+.venv\Scripts\python scripts\02_build_pairs.py
+.venv\Scripts\python scripts\03_filter_dedupe.py
+.venv\Scripts\python scripts\04_split.py      # -> 5,973 train / 348 val / 344 test
+
+# 2. training (sanity gate ~20 min, full run ~5 h on a 12 GB GPU)
+.venv\Scripts\python train\train_unsloth.py --sanity   # must reach loss ~0.1
+.venv\Scripts\python train\train_unsloth.py            # 748 steps; auto-resumes if killed
+
+# 3. package + benchmark
+.venv\Scripts\python packaging\merge_lora.py
+.venv\Scripts\python packaging\make_ollama.py
+.venv\Scripts\python eval\run_eval.py --model qwen2.5-coder:7b   # base row
+.venv\Scripts\python eval\run_eval.py --model genai-coder        # your row
 ```
 
-**Chat mode** streams answers with proper code blocks (copy button on each) and has a Stop button mid-generation. Messages are intent-routed: a 1-token classifier call (plus a deterministic SDK-keyword override) decides whether you're asking for code — code questions run under the same system prompt the benchmark used; conversational messages run under a plain-English prompt, so asking "what's my favorite number" gets a sentence back instead of a FastAPI app.
+Notes for faithful reproduction: harvest "pins" resolve to the latest release tag / HEAD at clone time, so a fresh harvest floats forward — the exact refs used for the shipped adapter are recorded in `docs/LICENSES.md` and `data/sources.yaml`. Free the GPU before training (`ollama stop` isn't a thing — quit the Ollama app) and expect ~24 s/step.
 
-**Build mode:** flip the selector next to the input from *Chat* to *Build* and describe something small (template skeletons are in the dropdown). Instead of replying with code to copy-paste, the model runs the agent harness server-side — you watch its write/run/fix loop stream into the chat, and the finished files land in `workspace/<run>/` (listed at the end of each run). Web apps are verified for real: the harness's `check_http` tool starts the server, probes the URL, reports the response, and shuts it down — the model uses it instead of just grepping its own output. Every Build task gets discipline rules appended automatically (no interactive `input()` programs, verify before done, use port 8123 — others are blocked on this box). Phrase tasks like a spec, not a wish: name the file, the exact command shape and expected output, and the verify commands to run — and prefer CLI-args programs over interactive `input()` apps, which the harness's non-interactive runner cannot verify. ("Can you make a calculator app" yields a stub; "calc.py where `python calc.py 2 + 3` prints 5, `5 / 0` prints an error and exits 1 — verify each" yields working, edge-case-tested software.) (The chat UI stays model-written per above; the Build-mode wiring — the `/agent` endpoint and mode toggle — is human-written infrastructure.)
+## The demo app
 
-It took 6 attempts to get there; the failures (and the harness fixes they forced) are catalogued in `docs/NOTES.md` — all of them agent-skill issues (JSON-escaping of file bodies, misread tracebacks), none of them SDK-currency issues. The app's FastAPI/requests/Ollama surfaces were current and correct on the first try.
+![app](docs/img/app.jpg)
 
-**v2** (current): the model then upgraded its own app — full-viewport dark chat UI with message bubbles, and real conversation memory (the full history flows through Ollama's `/api/chat`, so follow-ups have context). Four more harness rounds, catalogued in `docs/NOTES.md`; the model's final output was ~95% right and shipped with a disclosed **~15-line human patch** (sync generator + `stream=True`, one growing reply bubble instead of bubble-per-chunk, viewport flex). Ask it a follow-up question and it remembers — and being a code model, it usually answers in Python: asked for a remembered number, it replies `print(42)`.
+A single-file retro terminal (`demo/index.html` + `demo/main.py`) with two modes:
+
+- **Chat** — intent-routed: code questions run under the benchmarked system prompt and stream back as code blocks with copy buttons; conversational messages get plain English. Enter sends; `[ SEND ]` becomes `[ STOP ]` mid-generation.
+- **Build** — the model writes files into `workspace/<run>/`, runs them, reads errors, fixes them, and verifies web servers with real HTTP requests (`check_http`). Use the template dropdown: precise specs get working software, one-line wishes get stubs. Every Build task auto-receives discipline rules (no interactive `input()` programs, verify before done, use port 8123 — some ports are firewalled on locked-down machines: check `netsh interface ipv4 show excludedportrange protocol=tcp`).
+
+Attribution, honestly: the **first version of this app was written by genai-coder itself** through the agent harness (see NOTES 2026-07-20 for the six-attempt saga, preserved in `agent/logs/`); the v2 upgrade was ~95% model-written with a disclosed 15-line human patch; the current retro UI (boot sequence, welcome window, snake) is human-designed. The model remains the builder behind Build mode.
+
+The agent harness also works standalone:
+
+```bash
+.venv\Scripts\python agent\agent.py --task "Create rev.py: python rev.py WORD prints WORD reversed; wrong usage prints a usage line and exits 1. Verify both, then use done." --workdir workspace\rev
+```
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `scripts/` | data harvest → pairs → filter → split |
-| `train/` | QLoRA configs + training scripts (Unsloth primary, HF/TRL fallback) |
-| `eval/` | SDK-currency benchmark + scoring |
-| `packaging/` | LoRA merge → GGUF → Ollama Modelfile |
-| `agent/` | minimal coding-agent harness (ReAct/JSON protocol) |
-| `demo/` | the app the tuned model builds itself |
-| `docs/` | engineering notes, licenses manifest, model card |
+| `scripts/` | data pipeline: harvest → pairs → filter → split |
+| `train/` | QLoRA training script (Unsloth; config as constants in-file) |
+| `models/adapter/final/` | **the trained LoRA adapter** (git-lfs) |
+| `eval/` | 50-prompt SDK-currency benchmark + scoring + stored results |
+| `packaging/` | LoRA merge → GGUF convert → Ollama create |
+| `agent/` | coding-agent harness + protocol tests + run logs |
+| `demo/` | the terminal chat/build app |
+| `docs/` | `NOTES.md` (engineering log), `MODEL_CARD.md`, `LICENSES.md` |
 
-## Hardware
+## Hardware & constraints this was built under
 
-RTX A2000 12GB · 32GB RAM · Windows 11 (per-user installs only — no admin) · Python 3.12
+RTX A2000 12 GB · 32 GB RAM · Windows 11 · **no admin rights** (per-user installs only, WSL2 unavailable) · Python 3.12. Peak training VRAM 9.79 GB. If it ran here, it runs on any 12 GB+ NVIDIA card — and the constraint-specific landmines (CPU-only torch wheels from PyPI, EDR killing bulk-reading child processes, Windows excluded port ranges) are all documented in `docs/NOTES.md` with their workarounds.
+
+## License
+
+Code: MIT (see `LICENSE`). Adapter weights: Apache-2.0 (matching the Qwen2.5 base). Training-data sources and their licenses: `docs/LICENSES.md`. Model details: `docs/MODEL_CARD.md`.

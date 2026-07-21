@@ -4,13 +4,19 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
-# Model artifacts — never in git
-models/
+# Model artifacts — too big for git, EXCEPT the final adapter (via git-lfs):
+# it is the one irreplaceable training output; everything else (merged f16,
+# GGUF quants) rebuilds from it + public base models.
+models/*
+!models/adapter/
+models/adapter/*
+!models/adapter/final/
 outputs/
 runs/
 *.gguf
 *.safetensors
 *.bin
+!models/adapter/final/adapter_model.safetensors
 
 # Harvested/derived data (rebuilt by scripts/01–04 from pinned refs)
 data/raw/

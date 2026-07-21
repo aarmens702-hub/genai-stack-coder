@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-21 — GitHub polish: repo is now self-sufficient (school-laptop insurance)
+
+- **The trained adapter is in the repo** — `models/adapter/final/` (155 MB safetensors + tokenizer) committed via git-lfs with targeted .gitignore negations. It is the one irreplaceable artifact; the 15 GB merged/f16 and the 4.7 GB Q4 all rebuild from it + public downloads (path documented in MODEL_CARD "Rebuilding the GGUF"). Local-only backup option for the Q4 blob: copy `%USERPROFILE%\.ollama\models\blobs\sha256-bad7fd...` somewhere safe.
+- README rewritten end-to-end: two quickstarts (run-with-weights ~30-60 min; full reproduction incl. the pinned Windows/CUDA env), demo tour with screenshots (docs/img/), accurate layout table, honest attribution section, hardware/constraint notes. Stale claims fixed (bubbles-era UI description, /api/generate, HF/TRL fallback, phantom model card).
+- Added: MIT `LICENSE` (adapter noted Apache-2.0 to match Qwen base), `docs/MODEL_CARD.md` (full card: config, data rules, eval, limitations, rebuild instructions).
+- Improvement work paused by user; the fully-designed no-retraining plan (scorer audit → honest 76% headline + BM25 RAG over the harvested corpus, verified by simulation against stored results) is shelved in the session plan file for next time. Key spoiler recorded here so it survives: new-scorer rescore = base 6/50 unchanged, tuned retest 35→38 (76%); only 3 retest misses were scorer false-negatives; `beta.sessions` and `FunctionTool` turned out to be REAL current surfaces (BY_ID material, not denylist).
+
 ## 2026-07-21 — Goal loop: full chat+build test matrix, fix until green
 
 - Chat matrix C1-C7 (recall→prose, knowledge→prose, explicit code, terse-SDK override, code follow-up "now make it async", thanks, greeting): **7/7 PASS**, recall stable 3/3 identical. Root cause of all prior chat flakiness: `/chat` never set a temperature — Ollama's 0.8 default made every answer a dice roll while everything was measured at 0.2. Pinned 0.2; plain-chat prompt upgraded to the proven firmer wording.
