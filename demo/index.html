@@ -253,7 +253,9 @@
         .chip.build::before { color: var(--bright); }
         #snake {
             display: block;
-            margin: 30px 0 0;
+            width: 100%;
+            height: 120px;
+            margin: 26px 0 0;
             opacity: 0.85;
             image-rendering: pixelated;
         }
@@ -415,7 +417,7 @@
                         <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
                         <button class="chip build" data-build="web">verified fastapi endpoint</button>
                     </div>
-                    <canvas id="snake" width="336" height="120"></canvas>
+                    <canvas id="snake" height="120"></canvas>
                 </div>
             </div>
             <div id="welcome-box">
@@ -595,23 +597,46 @@
         let snakeTimer = null;
         if (!instantBoot && snakeCanvas) {
             const g = snakeCanvas.getContext("2d");
-            const CELL = 8, COLS = 42, ROWS = 15;
-            const FULL = 12;
+            const CELL = 8, ROWS = 15, FULL = 12, PRED_LEN = 8;
+            let COLS = 42;
             let snake, dir, food, phase, predator, pdir;
+            let particles = [];
+            let t = 0;
             const css = getComputedStyle(document.documentElement);
-            const C_FAINT = css.getPropertyValue("--faint").trim();
             const C_DIM = css.getPropertyValue("--dim").trim();
             const C_PHOS = css.getPropertyValue("--phos").trim();
             const C_BRIGHT = css.getPropertyValue("--bright").trim();
+            function fitCanvas() {
+                // the field is the box's whole bottom: refit whenever the
+                // window (or the docked panel) changes width
+                const w = snakeCanvas.clientWidth || 336;
+                COLS = Math.max(20, Math.floor(w / CELL));
+                snakeCanvas.width = COLS * CELL;
+                snakeCanvas.height = ROWS * CELL;
+                if (snake) snake = snake.map(([x, y]) => [Math.min(x, COLS - 1), y]);
+                if (food) food = [Math.min(food[0], COLS - 1), food[1]];
+            }
             function resetWorld() {
                 snake = [[8, 7], [7, 7], [6, 7]];
                 dir = [1, 0];
                 phase = "grow";
                 predator = null;
+                particles = [];
                 dropFood();
             }
             function dropFood() {
                 food = [Math.floor(Math.random() * COLS), Math.floor(Math.random() * ROWS)];
+            }
+            function burst(x, y) {
+                for (let i = 0; i < 7; i++) {
+                    particles.push({
+                        x: x * CELL + CELL / 2,
+                        y: y * CELL + CELL / 2,
+                        vx: (Math.random() - 0.5) * 7,
+                        vy: (Math.random() - 0.5) * 7,
+                        life: 6,
+                    });
+                }
             }
             function steer(from, target, current) {
                 const dx = target[0] - from[0];
@@ -627,16 +652,18 @@
                 return want;
             }
             function tick() {
+                t += 1;
                 if (phase === "grow") {
                     dir = steer(snake[0], food, dir);
                     const next = [(snake[0][0] + dir[0] + COLS) % COLS, (snake[0][1] + dir[1] + ROWS) % ROWS];
                     snake.unshift(next);
                     if (next[0] === food[0] && next[1] === food[1]) {
+                        burst(next[0], next[1]);
                         dropFood();
                         if (snake.length >= FULL) {
                             phase = "predator";
                             predator = [];
-                            for (let i = 0; i < 8; i++) predator.push([-2 - i, 7]);
+                            for (let i = 0; i < PRED_LEN; i++) predator.push([-2 - i, snake[0][1]]);
                             pdir = [1, 0];
                         }
                     } else {
@@ -650,6 +677,7 @@
                         const ph = predator[0];
                         const sh = snake[0];
                         if (Math.abs(ph[0] - sh[0]) + Math.abs(ph[1] - sh[1]) <= 1) {
+                            burst(sh[0], sh[1]);
                             snake.shift();
                             if (snake.length) snake.shift();
                         }
@@ -661,29 +689,63 @@
                             snake.pop();
                         }
                     } else {
+                        // victory lap: keep sliding until the whole tail has
+                        // cleared the right edge, then start over
                         pdir = [1, 0];
                         predator.unshift([predator[0][0] + 1, predator[0][1]]);
                         predator.pop();
-                        if (predator[0][0] > COLS + 8) resetWorld();
+                        const tail = predator[predator.length - 1];
+                        if (tail[0] * CELL > snakeCanvas.width + CELL) resetWorld();
                     }
                 }
+
                 g.clearRect(0, 0, snakeCanvas.width, snakeCanvas.height);
-                if (phase === "grow" || snake.length) {
+                if (snake.length) {
                     g.fillStyle = C_BRIGHT;
                     g.fillRect(food[0] * CELL + 2, food[1] * CELL + 2, CELL - 4, CELL - 4);
                 }
+                particles = particles.filter((p) => p.life > 0);
+                particles.forEach((p) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 1;
+                    g.globalAlpha = p.life / 6;
+                    g.fillStyle = C_BRIGHT;
+                    g.fillRect(p.x, p.y, 3, 3);
+                });
+                g.globalAlpha = 1;
                 snake.forEach(([x, y], i) => {
-                    g.fillStyle = i === 0 ? C_PHOS : C_DIM;
+                    if (i === 0) {
+                        g.shadowColor = C_PHOS;
+                        g.shadowBlur = 6;
+                        g.fillStyle = C_PHOS;
+                    } else {
+                        g.shadowBlur = 0;
+                        g.fillStyle = C_DIM;
+                    }
                     g.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
                 });
+                g.shadowBlur = 0;
                 if (predator) {
                     predator.forEach(([x, y], i) => {
-                        g.fillStyle = i === 0 ? C_BRIGHT : C_PHOS;
-                        g.fillRect(x * CELL - 1, y * CELL - 1, CELL + 2, CELL + 2);
+                        const bob = (i + t) % 2 === 0 ? -1 : 1;
+                        if (i === 0) {
+                            g.shadowColor = C_BRIGHT;
+                            g.shadowBlur = 10;
+                            g.fillStyle = C_BRIGHT;
+                        } else {
+                            g.shadowBlur = 4;
+                            g.shadowColor = C_PHOS;
+                            g.fillStyle = C_PHOS;
+                        }
+                        g.fillRect(x * CELL - 1, y * CELL - 1 + bob, CELL + 2, CELL + 2);
                     });
+                    g.shadowBlur = 0;
                 }
             }
+            fitCanvas();
             resetWorld();
+            if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(snakeCanvas);
             snakeTimer = setInterval(tick, 110);
         } else if (snakeCanvas) {
             snakeCanvas.style.display = "none";
