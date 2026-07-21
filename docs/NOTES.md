@@ -2,6 +2,12 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-20 — Benchmark retest: 70% reproduced; zero deprecated-API emissions
+
+- Fresh full 50-prompt run of `genai-coder` (same harness/system prompt): **35/50 (70%)** vs the July-16 run's 36/50 (72%) — aggregate stable; 9 prompts flipped in both directions (4 gained, 5 lost), normal temp-0.2 sampling variance.
+- Failure taxonomy of the fresh run's 15 misses: **0 used a deprecated API**, 13 wrote valid *current* code that missed the assertion's expected surface (different-but-modern approach), 2 had syntax problems (`openai-11`, `openai-14`). The trained-against behavior — emitting dead 2023 APIs — did not occur once in 50 answers; the base model's failures were full of them.
+- Results: `eval/results/genai-coder-retest-20260720.jsonl`.
+
 ## 2026-07-20 — Finale v2: real chat UI + conversation memory (agent + disclosed 15-line patch)
 
 - v1 was functionally right but visually bare and stateless (its spec asked for minimal). v2 task (`agent/demo_task_v2.md`): full-viewport dark chat UI with bubbles + full-history backend on `/api/chat`. Four agent rounds; each exposed a new generic harness gap (tests now 18/18):

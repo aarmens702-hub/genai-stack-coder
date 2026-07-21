@@ -1,0 +1,85 @@
+[1/50] openai-01: PASS
+[2/50] openai-02: PASS
+[3/50] openai-03: PASS
+[4/50] openai-04: PASS
+[5/50] openai-05: FAIL
+[6/50] openai-06: FAIL
+[7/50] openai-07: PASS
+[8/50] openai-08: PASS
+[9/50] openai-09: PASS
+[10/50] openai-10: PASS
+[11/50] openai-11: FAIL
+[12/50] openai-12: FAIL
+[13/50] openai-13: PASS
+[14/50] openai-14: FAIL
+[15/50] openai-15: PASS
+[16/50] openai-16: PASS
+[17/50] openai-17: FAIL
+[18/50] openai-18: PASS
+[19/50] openai-19: PASS
+[20/50] openai-20: FAIL
+[21/50] anthropic-01: PASS
+[22/50] anthropic-02: PASS
+[23/50] anthropic-03: PASS
+[24/50] anthropic-04: FAIL
+[25/50] anthropic-05: PASS
+[26/50] anthropic-06: PASS
+[27/50] anthropic-07: PASS
+[28/50] anthropic-08: PASS
+[29/50] anthropic-09: PASS
+[30/50] anthropic-10: FAIL
+[31/50] anthropic-11: FAIL
+[32/50] anthropic-12: FAIL
+[33/50] anthropic-13: FAIL
+[34/50] anthropic-14: PASS
+[35/50] anthropic-15: PASS
+[36/50] anthropic-16: PASS
+[37/50] anthropic-17: PASS
+[38/50] anthropic-18: PASS
+[39/50] anthropic-19: PASS
+[40/50] anthropic-20: PASS
+[41/50] ollama-01: PASS
+[42/50] ollama-02: PASS
+[43/50] ollama-03: FAIL
+[44/50] ollama-04: FAIL
+[45/50] ollama-05: PASS
+[46/50] ollama-06: PASS
+[47/50] ollama-07: PASS
+[48/50] ollama-08: FAIL
+[49/50] ollama-09: PASS
+[50/50] ollama-10: PASS
+
+sdk         task        pass rate
+------------------------------------
+openai      async       1/2 (50%)
+openai      chat        3/3 (100%)
+openai      embeddings  2/2 (100%)
+openai      responses   3/3 (100%)
+openai      streaming   1/3 (33%)
+openai      structured  1/2 (50%)
+openai      tools       1/3 (33%)
+openai      vision      1/2 (50%)
+openai      ALL         13/20 (65%)
+------------------------------------
+anthropic   async       2/2 (100%)
+anthropic   chat        3/4 (75%)
+anthropic   streaming   4/4 (100%)
+anthropic   structured  1/2 (50%)
+anthropic   thinking    1/1 (100%)
+anthropic   tokens      1/1 (100%)
+anthropic   tools       1/4 (25%)
+anthropic   vision      2/2 (100%)
+anthropic   ALL         15/20 (75%)
+------------------------------------
+ollama      async       1/1 (100%)
+ollama      chat        2/2 (100%)
+ollama      embeddings  0/1 (0%)
+ollama      generate    1/1 (100%)
+ollama      streaming   0/2 (0%)
+ollama      structured  2/2 (100%)
+ollama      tools       1/1 (100%)
+ollama      ALL         7/10 (70%)
+------------------------------------
+TOTAL                   35/50 (70%)
+
+results written to eval\results\genai-coder-retest-20260720.jsonl
