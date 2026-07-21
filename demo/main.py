@@ -72,8 +72,8 @@ RULES (always apply):
 app = FastAPI()
 
 @app.get("/")
-async def get_index(request: Request):
-    return FileResponse("index.html")
+async def get_index():
+    return FileResponse(os.path.join(REPO, "demo", "index.html"))
 
 @app.post("/chat")
 async def post_chat(request: Request):
@@ -82,7 +82,7 @@ async def post_chat(request: Request):
     system = SYSTEM_PROMPT if wants_code(last_user) else CHAT_PLAIN_PROMPT
     messages = [{"role": "system", "content": system}] + body["messages"]
     
-    response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True, "options": {"temperature": 0.2}}, stream=True)
+    response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True, "options": {"temperature": 0.2}}, stream=True, timeout=(5, 300))
 
     def stream_response(resp):
         for line in resp.iter_lines():

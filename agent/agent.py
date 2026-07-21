@@ -75,7 +75,7 @@ TOOLS (use exactly these shapes):
 full file content here, exactly as it should appear on disk
 ```
 {"tool": "run_command", "args": {"cmd": "python file.py"}}
-{"tool": "check_http", "args": {"cmd": "python app.py", "url": "http://127.0.0.1:8005/"}}
+{"tool": "check_http", "args": {"cmd": "python app.py", "url": "http://127.0.0.1:8123/"}}
 {"tool": "done", "args": {"message": "what you built and how to run it"}}
 
 NOTES:

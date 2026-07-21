@@ -43,10 +43,10 @@ via Ollama, temperature 0.2, identical system prompt.
 
 A re-run four days later reproduced 35/50 (70%) — stable within temp-0.2
 sampling variance. Failure analysis of the re-run: **zero answers used a
-deprecated API** (the trained-against behavior is gone); most misses are
-valid modern code that the pattern-based scorer's positive lists are too
-narrow to credit — a scorer audit found the honest score is ~76%
-(see `docs/NOTES.md`, 2026-07-21).
+deprecated API** (the trained-against behavior is gone). A scorer audit
+credited 3 additional answers that used current-but-unlisted API surfaces
+(35/50 → 38/50, ~76%); the remaining misses are genuine — invented
+surfaces and small-model syntax slips (see `docs/NOTES.md`, 2026-07-21).
 
 ## Known limitations
 

@@ -558,11 +558,13 @@
                 o.stop(ctx.currentTime + t + 1.3);
             });
         }
-        function firstGesture() {
-            if (!chimePlayed && soundOn) {
-                chimePlayed = true;
-                try { playChime(); } catch (e) {}
-            }
+        function firstGesture(e) {
+            // don't chime when the very first click is the mute button itself,
+            // and keep listening until the chime has actually played
+            if (e && e.target && e.target.id === "sound-toggle") return;
+            if (!soundOn) return;
+            chimePlayed = true;
+            try { playChime(); } catch (err) {}
             window.removeEventListener("pointerdown", firstGesture);
             window.removeEventListener("keydown", firstGesture);
         }
@@ -594,7 +596,6 @@
         // ambient snake: grows as it eats; at full length a bigger predator
         // snake sweeps in, eats it, and leaves -- then it all begins again
         const snakeCanvas = document.getElementById("snake");
-        let snakeTimer = null;
         if (!instantBoot && snakeCanvas) {
             const g = snakeCanvas.getContext("2d");
             const CELL = 8, ROWS = 15, FULL = 12, PRED_LEN = 8;
@@ -752,7 +753,7 @@
             fitCanvas();
             resetWorld();
             if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(snakeCanvas);
-            snakeTimer = setInterval(tick, 110);
+            setInterval(tick, 110);
         } else if (snakeCanvas) {
             snakeCanvas.style.display = "none";
         }

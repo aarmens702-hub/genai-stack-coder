@@ -1,10 +1,10 @@
 # GenAI-Stack-Coder
 
-Fine-tuning **Qwen2.5-Coder-7B** on a single RTX A2000 12GB (native Windows, no admin rights) to do one thing better than models 100× its size: **write correct, current generative-AI application code** — modern OpenAI / Anthropic / Ollama SDK usage, streaming, tool calling, structured output.
+Fine-tuning **Qwen2.5-Coder-7B-Instruct** on a single RTX A2000 12GB (native Windows, no admin rights) to do one thing better than models 100× its size: **write correct, current generative-AI application code** — modern OpenAI / Anthropic / Ollama SDK usage, streaming, tool calling, structured output.
 
-**Why:** every base model hallucinates 2023-era SDK calls (`openai.ChatCompletion.create`, anyone?). This model is QLoRA-trained exclusively on current, human-written, permissively-licensed example code so it doesn't. **Result: 12% → 72%** on a 50-prompt SDK-currency benchmark.
+**Why:** every base model hallucinates 2023-era SDK calls (`openai.ChatCompletion.create`, anyone?). This model is QLoRA-trained exclusively on current, human-written, permissively-licensed example code so it doesn't. **Result: 12% → 72%** on a 50-prompt SDK-currency benchmark — and every stage, from data harvest to the benchmark itself, reruns from scripts in this repo.
 
-**Finale:** the tuned model, driven by the minimal agent harness in this repo, wrote the first version of its own chat app — and the app's Build mode still lets it write, run, and verify real files live.
+**Finale:** driven by the ~400-line agent harness in this repo, the tuned model wrote the first version of its own chat app — and in the app's Build mode you can still watch the model write, run, and fix real files live.
 
 ![landing](docs/img/landing.jpg)
 *The demo app: an amber-phosphor terminal that boots your model's real spec sheet. Yes, there is a resident snake.*
@@ -20,7 +20,7 @@ Fine-tuning **Qwen2.5-Coder-7B** on a single RTX A2000 12GB (native Windows, no 
 | ollama | 4/10 (40%) | **7/10 (70%)** |
 | **total** | **6/50 (12%)** | **36/50 (72%)** |
 
-A re-run four days later reproduced 35/50 — stable within sampling variance — with **zero deprecated-API emissions across all 50 answers**. A scorer audit found the pattern-based grader too strict (valid modern code missing its narrow positive lists); the audited honest score is ~76% (`docs/NOTES.md`, 2026-07-21).
+A re-run four days later scored 35/50 (stable), with **zero deprecated-API calls in any of the 50 answers**; a manual audit found the automated grader slightly strict — honest score ~76% (`docs/NOTES.md`, 2026-07-21).
 
 Canonical "before" example — the base model answers a streaming question with `openai.ChatCompletion.create(stream=True)`, removed from the SDK in Nov 2023; the tuned model instantiates the current `OpenAI()` client and streams with the `client.chat.completions.stream(...)` helper.
 
@@ -35,7 +35,7 @@ Canonical "before" example — the base model answers a streaming question with 
 
 ## Quickstart A — run it with the trained weights (~30–60 min, mostly downloads)
 
-Prereqs: Windows/Linux/macOS with **Python 3.12**, **[Ollama](https://ollama.com)** installed and running, **git-lfs** (`git lfs install` once), ~40 GB free disk, 16 GB+ RAM. No GPU required to *run* (Ollama uses one if present; the demo fits an 8 GB card).
+Prereqs: **Python 3.12**, **[Ollama](https://ollama.com)** installed and running, **git-lfs** (`git lfs install` once), a **llama.cpp checkout** (see note below), ~40 GB free disk, 16 GB+ RAM (the merge step itself needs ~16 GB free), and — for the one-time merge step — an **NVIDIA GPU with CUDA** (the pinned training requirements are Windows-specific; after packaging, *running* via Ollama needs no GPU and works anywhere Ollama does). Commands are Windows-style with forward slashes (they work in cmd, PowerShell, and Git Bash); on Linux/macOS substitute `.venv/bin/`.
 
 ```bash
 git clone https://github.com/aarmens702-hub/genai-stack-coder.git
@@ -43,50 +43,55 @@ cd genai-stack-coder
 git lfs pull                                  # fetches the 155 MB adapter
 
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt # runtime deps (openai, requests, fastapi, uvicorn)
-.venv\Scripts\pip install -r requirements-train.txt  # ALSO needed for the merge step (torch etc.)
+.venv/Scripts/pip install -r requirements.txt # runtime deps (openai, requests, fastapi, uvicorn)
+# training/merge deps: do NOT plain-install requirements-train.txt -- torch's
+# cu128 wheels are not on PyPI. Follow the 4 ordered install commands in the
+# header of requirements-train.txt (exact index URLs and --no-deps flags).
 
-# rebuild the model from the adapter (downloads the 15 GB base from HF once)
-.venv\Scripts\python packaging\merge_lora.py
-.venv\Scripts\python packaging\make_ollama.py # f16 GGUF -> Ollama Q4_K_M (needs llama.cpp, see below)
+ollama pull qwen2.5-coder:7b                  # base model; also the chat-template donor for make_ollama.py
+
+# rebuild the model from the adapter (downloads the ~5.5 GB 4-bit base from HF
+# once; writes ~15 GB merged fp16 to models/merged/)
+.venv/Scripts/python packaging/merge_lora.py
+.venv/Scripts/python packaging/make_ollama.py # f16 GGUF -> Ollama Q4_K_M (needs llama.cpp, see below)
 
 ollama run genai-coder "write python that streams a chat reply from the openai api"
 
 # the demo app
-cd demo && ..\.venv\Scripts\python main.py    # open http://127.0.0.1:8000
+.venv/Scripts/python demo/main.py             # open http://127.0.0.1:8000
 ```
 
-**llama.cpp note:** `make_ollama.py` uses llama.cpp's `convert_hf_to_gguf.py`. Clone [llama.cpp](https://github.com/ggml-org/llama.cpp) next to this repo as `llama.cpp-src` (conversion is pure Python — no C++ build needed; quantization happens inside the Ollama server). If the packaging CLI dies mid-create on a locked-down machine, `packaging/create_via_api.py` is the kill-resilient path (see NOTES 2026-07-16).
+**llama.cpp note:** `make_ollama.py` uses llama.cpp's `convert_hf_to_gguf.py` and expects the checkout **inside the repo root**: from inside `genai-stack-coder/`, run `git clone https://github.com/ggml-org/llama.cpp llama.cpp-src` (conversion is pure Python — no C++ build needed; quantization happens inside the Ollama server). If the packaging CLI dies mid-create on a locked-down machine, `packaging/create_via_api.py` is the kill-resilient path (see NOTES 2026-07-16).
 
 ## Quickstart B — reproduce the whole thing from zero
 
-The full run: harvest → dataset → train → package → benchmark. Budget an evening plus one overnight.
+The full run: harvest → dataset → train → package → benchmark. Budget an evening plus one overnight. **Start from Quickstart A's clone + venv + both dependency installs**, then:
 
 ```bash
-# 0. environment (Windows + CUDA is a minefield; requirements-train.txt is the
-#    exact pinned set that works: torch 2.10.0+cu128, xformers 0.0.34 --no-deps,
-#    triton-windows 3.6.0.post26, unsloth. See NOTES 2026-07-14 before improvising.)
-.venv\Scripts\pip install -r requirements-train.txt
+# 0. environment sanity: the pinned training set (torch 2.10.0+cu128,
+#    xformers 0.0.34 --no-deps, triton-windows 3.6.0.post26, unsloth) must be
+#    installed per the 4 ordered commands in requirements-train.txt's header.
+#    Windows + CUDA is a minefield -- see NOTES 2026-07-14 before improvising.
 
 # 1. data pipeline (~4 h, mostly local question generation via Ollama)
 ollama pull qwen2.5-coder:7b                  # the question-writing teacher
-.venv\Scripts\python scripts\01_harvest.py    # clone sources, extract snippets
-.venv\Scripts\python scripts\02_build_pairs.py
-.venv\Scripts\python scripts\03_filter_dedupe.py
-.venv\Scripts\python scripts\04_split.py      # -> 5,973 train / 348 val / 344 test
+.venv/Scripts/python scripts/01_harvest.py    # clone sources, extract snippets
+.venv/Scripts/python scripts/02_build_pairs.py
+.venv/Scripts/python scripts/03_filter_dedupe.py
+.venv/Scripts/python scripts/04_split.py      # -> 5,973 train / 348 val / 344 test
 
 # 2. training (sanity gate ~20 min, full run ~5 h on a 12 GB GPU)
-.venv\Scripts\python train\train_unsloth.py --sanity   # must reach loss ~0.1
-.venv\Scripts\python train\train_unsloth.py            # 748 steps; auto-resumes if killed
+.venv/Scripts/python train/train_unsloth.py --sanity   # must reach loss ~0.1
+.venv/Scripts/python train/train_unsloth.py            # 748 steps; auto-resumes if killed
 
 # 3. package + benchmark
-.venv\Scripts\python packaging\merge_lora.py
-.venv\Scripts\python packaging\make_ollama.py
-.venv\Scripts\python eval\run_eval.py --model qwen2.5-coder:7b   # base row
-.venv\Scripts\python eval\run_eval.py --model genai-coder        # your row
+.venv/Scripts/python packaging/merge_lora.py
+.venv/Scripts/python packaging/make_ollama.py
+.venv/Scripts/python eval/run_eval.py --model qwen2.5-coder:7b   # base row
+.venv/Scripts/python eval/run_eval.py --model genai-coder        # your row
 ```
 
-Notes for faithful reproduction: harvest "pins" resolve to the latest release tag / HEAD at clone time, so a fresh harvest floats forward — the exact refs used for the shipped adapter are recorded in `docs/LICENSES.md` and `data/sources.yaml`. Free the GPU before training (`ollama stop` isn't a thing — quit the Ollama app) and expect ~24 s/step.
+Notes for faithful reproduction: harvest "pins" resolve to the latest release tag / HEAD at clone time, so a fresh harvest floats forward — the exact refs used for the shipped adapter are recorded in `docs/LICENSES.md` and `data/sources.yaml`. Free the GPU before training: `ollama stop qwen2.5-coder:7b` unloads the model, but on Windows the tray app can reload it — quitting the Ollama app entirely is the reliable route. Expect ~24 s/step.
 
 ## The demo app
 

@@ -91,7 +91,7 @@ TASK_NEGATIVE = {
 }
 
 # per-prompt-id overrides: {"<id>": {"positive": [...], "negative": [...]}}
-BY_ID = {}
+BY_ID = {}  # intentionally empty extension point: per-prompt {"positive": [...], "negative": [...]} overrides, merged by score()
 
 _FENCE = re.compile(r"```([^\n`]*)\n(.*?)(?:```|\Z)", re.S)
 

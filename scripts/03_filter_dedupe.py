@@ -8,7 +8,7 @@ Gates, in order (drop reasons counted and printed):
   4. deprecated-API denylist — legacy code from old cookbook corners must
      never become a training answer in a project whose whole point is
      API currency
-  5. near-duplicate questions for the same snippet
+  5. exact-duplicate questions (case/punctuation-normalized) for the same snippet
   6. SDK balance: cap the openai share at 60% (seeded downsample)
 
 Output records are chat-format: {"messages": [system, user, assistant],

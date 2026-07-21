@@ -1,6 +1,6 @@
 # Dataset license manifest
 
-All training answers are human-written code from these repos, harvested at the pinned refs below. No model-generated answers.
+All training answers are human-written code from these repos, harvested at the refs below (recorded at harvest time — a fresh harvest resolves to the then-latest tag/HEAD; see README). No model-generated answers.
 
 | Source | License | Ref | Snippets |
 |---|---|---|---|

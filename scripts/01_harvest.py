@@ -179,7 +179,7 @@ def harvest(source, ref):
                 if "examples" not in path.parts:
                     continue
             elif not {"examples", "tests"} & set(path.parts):
-                continue  # SDK repos: usage code only — never library internals (src/)
+                continue  # SDK repos: examples/ and tests/ only — never library internals (src/)
             snippets = extract_from_py(path)
         elif path.suffix in (".md", ".mdx"):
             snippets = extract_from_md(path)
