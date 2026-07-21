@@ -237,7 +237,12 @@ def tool_run_command(args, workdir):
             timeout=COMMAND_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
-        return "ERROR: command timed out after " + str(COMMAND_TIMEOUT) + "s: " + cmd
+        return (
+            "ERROR: command timed out after " + str(COMMAND_TIMEOUT) + "s: " + cmd
+            + "\nIf this command starts a server, run_command can never verify it"
+            " -- it just blocks until this timeout. Use check_http instead, e.g."
+            ' {"tool": "check_http", "args": {"cmd": "' + cmd + '", "url": "http://127.0.0.1:8123/"}}'
+        )
     return (
         "exit code: " + str(proc.returncode)
         + "\nstdout:\n" + proc.stdout
