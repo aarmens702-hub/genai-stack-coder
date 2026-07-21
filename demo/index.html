@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>genai-coder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #0a0908;
@@ -12,7 +15,7 @@
             --faint: #4a3c1c;
             --bright: #ffd580;
             --glow: 0 0 8px rgba(255, 176, 0, 0.22);
-            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+            --mono: "VT323", "Cascadia Mono", Consolas, "Courier New", monospace;
         }
         * { box-sizing: border-box; }
         body {
@@ -23,8 +26,8 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            font-size: 14px;
-            line-height: 1.55;
+            font-size: 19px;
+            line-height: 1.35;
         }
         ::selection { background: var(--phos); color: var(--bg); }
 
@@ -38,8 +41,8 @@
             flex-wrap: wrap;
         }
         #wordmark {
-            font-size: 15px;
-            font-weight: 700;
+            font-size: 24px;
+            font-weight: 400;
             letter-spacing: 0.04em;
             margin: 0;
             color: var(--bright);
@@ -51,7 +54,7 @@
             animation: pulse 2.4s ease-in-out infinite;
         }
         #specplate {
-            font-size: 12px;
+            font-size: 16px;
             color: var(--dim);
             letter-spacing: 0.03em;
         }
@@ -78,10 +81,14 @@
 
         #boot {
             margin: 4vh 0 0;
-            font-size: 13.5px;
+            font-size: 19px;
             color: var(--dim);
             white-space: pre-wrap;
             text-shadow: var(--glow);
+            display: inline-block;
+            border: 4px double var(--faint);
+            padding: 14px 22px 16px;
+            min-width: 560px;
         }
         #boot .ok { color: var(--phos); }
         #boot .val { color: var(--bright); }
@@ -95,7 +102,7 @@
         #chips.on { visibility: visible; }
         .chip {
             font-family: var(--mono);
-            font-size: 12.5px;
+            font-size: 17px;
             color: var(--phos);
             background: transparent;
             border: 1px solid var(--faint);
@@ -156,7 +163,7 @@
         }
         .code-wrap code {
             font-family: var(--mono);
-            font-size: 13px;
+            font-size: 17px;
             color: var(--bright);
         }
         .code-wrap pre::-webkit-scrollbar { height: 8px; }
@@ -176,7 +183,7 @@
             background-color: transparent;
             color: var(--dim);
             font-family: var(--mono);
-            font-size: 11px;
+            font-size: 14px;
             cursor: pointer;
             transition: background-color 0.1s, color 0.1s;
         }
@@ -185,7 +192,7 @@
             border-color: var(--phos);
             color: var(--bg);
         }
-        .build-output { font-size: 12.5px; color: var(--dim); }
+        .build-output { font-size: 16px; color: var(--dim); }
         .build-output.streaming::after { color: var(--bright); }
 
         /* prompt line */
@@ -196,23 +203,23 @@
         #input-inner { display: flex; gap: 8px; align-items: center; }
         #prompt-sigil { color: var(--bright); text-shadow: var(--glow); }
         #mode, #template {
-            padding: 7px 6px;
+            padding: 6px 6px;
             border: 1px solid var(--faint);
             border-radius: 3px;
             background-color: var(--bg);
             color: var(--dim);
             font-family: var(--mono);
-            font-size: 12px;
+            font-size: 16px;
         }
         #user-input {
             flex: 1;
-            padding: 8px 10px;
+            padding: 7px 12px;
             border: 1px solid var(--faint);
             border-radius: 3px;
             background-color: transparent;
             color: var(--bright);
             font-family: var(--mono);
-            font-size: 14px;
+            font-size: 19px;
             caret-color: var(--phos);
         }
         #user-input::placeholder { color: var(--dim); opacity: 0.6; }
@@ -221,14 +228,14 @@
             outline-offset: 1px;
         }
         #send-button {
-            padding: 8px 16px;
+            padding: 7px 16px;
             border: 1px solid var(--phos);
             border-radius: 3px;
             background-color: transparent;
             color: var(--phos);
             font-family: var(--mono);
-            font-size: 13px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 400;
             letter-spacing: 0.06em;
             cursor: pointer;
             transition: background-color 0.1s, color 0.1s;
@@ -306,6 +313,7 @@
             ["benchmark ... ", "", "SDK-currency 12% → 72%"],
             ["link ........ ", "", "ollama @ 127.0.0.1:11434 [OK]"],
             ["", ""],
+            ["Starting genai-coder...", ""],
             ["READY. type a request, or pick a preset:", "ok"],
         ];
         const bootEl = document.getElementById("boot");
