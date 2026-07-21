@@ -11,6 +11,25 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Same system prompt as training and the benchmark, so chat behaves like the
+# configuration the 12%->72% numbers were measured under.
+with open(os.path.join(REPO, "scripts", "system_prompt.txt"), encoding="utf-8") as _f:
+    SYSTEM_PROMPT = _f.read().strip()
+
+# Appended to every Build task: the discipline rules learned from live runs.
+TASK_EPILOGUE = """
+
+RULES (always apply):
+- Do not build interactive programs that wait for keyboard input; build CLIs
+  that take command-line arguments instead.
+- Before using done, run every verify command the task lists and confirm its
+  expected output. If the task lists none, invent at least one command that
+  proves the program works, and run it.
+- To verify a web server, use ONLY the check_http tool. Starting a server with
+  run_command hangs for 60 seconds and then fails -- never do it.
+- Use port 8123 for any server you build (other ports may be blocked on this
+  machine)."""
+
 
 app = FastAPI()
 
@@ -21,7 +40,7 @@ async def get_index(request: Request):
 @app.post("/chat")
 async def post_chat(request: Request):
     body = await request.json()
-    messages = body["messages"]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + body["messages"]
     
     response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True}, stream=True)
 
@@ -38,9 +57,9 @@ async def agent(request: Request):
     """Build mode: run the coding-agent harness on a task, streaming its
     progress log; files land in a fresh workspace/<run>/ folder."""
     body = await request.json()
-    task = body["task"]
+    task = body["task"] + TASK_EPILOGUE
 
-    slug = "".join(c if c.isalnum() else "-" for c in task[:30]).strip("-").lower() or "task"
+    slug = "".join(c if c.isalnum() else "-" for c in body["task"][:30]).strip("-").lower() or "task"
     workdir = os.path.join(REPO, "workspace", time.strftime("%Y%m%d-%H%M%S") + "-" + slug)
 
     def run_agent_stream():
@@ -60,6 +79,14 @@ async def agent(request: Request):
             proc.wait()
             status = "done" if proc.returncode == 0 else "stopped (exit %d)" % proc.returncode
             yield "\n[" + status + "] files are in " + workdir + "\n"
+            listing = []
+            for root, _dirs, files in os.walk(workdir):
+                for name in files:
+                    full = os.path.join(root, name)
+                    rel = os.path.relpath(full, workdir)
+                    listing.append("  %s (%d bytes)" % (rel, os.path.getsize(full)))
+            if listing:
+                yield "files created:\n" + "\n".join(sorted(listing)) + "\n"
         finally:
             if proc.poll() is None:
                 proc.kill()

@@ -203,6 +203,40 @@ def test_blank_content_prefers_fence():
         assert written == "x = 1\n"
 
 
+def test_check_http_happy():
+    with tempfile.TemporaryDirectory() as wd:
+        (Path(wd) / "index.html").write_text("hello-check-http", encoding="utf-8")
+        obs = agent.run_tool(
+            "check_http",
+            {"cmd": "python -m http.server 8123 --bind 127.0.0.1",
+             "url": "http://127.0.0.1:8123/index.html"},
+            wd,
+        )
+        assert "HTTP 200" in obs
+        assert "hello-check-http" in obs
+
+
+def test_check_http_rejects_remote():
+    with tempfile.TemporaryDirectory() as wd:
+        obs = agent.run_tool(
+            "check_http",
+            {"cmd": "python -m http.server 8124", "url": "http://example.com/"},
+            wd,
+        )
+        assert "only accepts localhost" in obs
+
+
+def test_check_http_dead_server():
+    with tempfile.TemporaryDirectory() as wd:
+        obs = agent.run_tool(
+            "check_http",
+            {"cmd": "python -c \"print('bye')\"", "url": "http://127.0.0.1:8125/"},
+            wd,
+        )
+        assert "ERROR" in obs
+        assert "exited" in obs or "did not answer" in obs
+
+
 def test_done_rejected_while_write_pending():
     with tempfile.TemporaryDirectory() as wd:
         client = FakeClient([
@@ -256,6 +290,9 @@ TESTS = [
     test_write_without_content_prompts_for_fence,
     test_split_fenced_write,
     test_blank_content_prefers_fence,
+    test_check_http_happy,
+    test_check_http_rejects_remote,
+    test_check_http_dead_server,
     test_done_rejected_while_write_pending,
     test_repeated_write_warns,
     test_truncation,

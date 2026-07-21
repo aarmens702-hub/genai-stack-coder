@@ -2,6 +2,14 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-21 — Improvement pass: check_http runtime verification + chat polish
+
+- **Harness `check_http` tool** (the "run-the-server-and-curl" lever flagged on 07-20): starts a server command, polls its localhost URL (15s), returns HTTP status + body head, then taskkills the process tree. Denylist applies; non-localhost URLs rejected. Tests 21/21 (happy path boots a real `http.server`). Proven end-to-end through Build mode: model wrote a FastAPI app and verified it with check_http in 4 steps — first *runtime-verified* web app.
+- **Environment trap found:** this box has Windows excluded TCP ports (80, **8005**, 8033, 50000-59) — first E2E run bound 8005, got Errno 13, and the model looped (bind errors aren't fixable by editing code). Standardized on port 8123; Build epilogue now says so.
+- **Build epilogue** auto-appended to every task: no interactive `input()` programs; run every verify before done; servers only via check_http. Plus end-of-run `files created:` listing in the stream.
+- **Chat:** replies render ``` fences as code blocks with copy buttons (vanilla JS, textContent-only — no injection); `/chat` now sends the training/benchmark system prompt (was missing — deployed chat ran without the identity/currency prompt it was measured under); Stop button (AbortController; `/agent` child killed via generator finally); Build-task template dropdown.
+- **Survey findings recorded for next session** (repo sweep, full report in session log): eval positive-patterns are too narrow — 13/15 benchmark misses are *scorer false negatives* on valid modern code (e.g. `client.chat.completions.stream(...)` not in the openai-streaming positive list; async scored only by the literal `AsyncOpenAI`). The 70-72% headline is scorer-limited; fixing the positive lists (+ using the empty BY_ID override map) is the highest-leverage honest-number improvement. Also: harvest "pins" actually float to latest tag/HEAD on fresh clones; no model card in docs/ despite README promising one; ollama is weakest SDK (3% data share) with real hallucinations (invented `Embedding(...)`, Anthropic's `text_stream` grafted onto Ollama).
+
 ## 2026-07-20 — Build mode: the chat can now deploy code, not just print it
 
 - User pain: chat-only output means copy-paste. Fix: **Build mode** in the demo — a Chat/Build selector; Build POSTs the task to a new `/agent` endpoint that subprocesses `agent/agent.py` (`--max-iters 15`) into a fresh `workspace/<timestamp>-<slug>/` and streams the harness's stdout to the browser as plain text (same streaming path the chat uses; monospace bubble). Client disconnect kills the child via the generator's `finally`. This wiring is human-written (disclosed in README); the model remains the builder.

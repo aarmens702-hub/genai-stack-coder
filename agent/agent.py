@@ -17,6 +17,9 @@ import os
 import re
 import subprocess
 import sys
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 BASE_URL = "http://localhost:11434/v1"  # Ollama's OpenAI-compatible endpoint
@@ -25,6 +28,7 @@ TEMPERATURE = 0.2
 OBS_LIMIT = 4000      # max chars of an observation fed back to the model
 PRINT_LIMIT = 300     # max chars of action args echoed to the terminal
 COMMAND_TIMEOUT = 60  # seconds
+CHECK_HTTP_TIMEOUT = 15  # seconds to wait for a server to answer its URL
 
 # Last content written per resolved path, so the observation can warn the model
 # when it rewrites a file unchanged (a small model stuck in a fix-nothing loop).
@@ -70,6 +74,7 @@ TOOLS (use exactly these shapes):
 full file content here, exactly as it should appear on disk
 ```
 {"tool": "run_command", "args": {"cmd": "python file.py"}}
+{"tool": "check_http", "args": {"cmd": "python app.py", "url": "http://127.0.0.1:8005/"}}
 {"tool": "done", "args": {"message": "what you built and how to run it"}}
 
 NOTES:
@@ -77,6 +82,9 @@ NOTES:
   complete file content.
 - run_command runs in PowerShell inside the working directory with a 60 second
   timeout. Never start long-running servers with it; verify with quick commands.
+- check_http starts cmd, waits until url answers, returns the HTTP status and
+  the start of the body, then stops the server. It is the ONLY correct way to
+  verify a web server. Only localhost URLs are allowed.
 - Verify your work with run_command (run the script, check imports) before "done".
 - If run_command fails, the traceback names the exact file and line. First
   read_file that file to see what is really in it, then rewrite THAT file --
@@ -237,6 +245,60 @@ def tool_run_command(args, workdir):
     )
 
 
+def tool_check_http(args, workdir):
+    """Start a server command, wait for its URL to answer, report, stop it."""
+    cmd = str(args.get("cmd", "")).strip()
+    url = str(args.get("url", "")).strip()
+    if not cmd or not url:
+        return "ERROR: check_http needs 'cmd' (server command) and 'url' args."
+    host = urllib.parse.urlparse(url).hostname or ""
+    if host not in ("127.0.0.1", "localhost"):
+        return "ERROR: check_http only accepts localhost URLs."
+    lowered = cmd.lower()
+    for pattern in DENYLIST:
+        if pattern in lowered:
+            return "ERROR: command blocked by denylist pattern " + repr(pattern) + "."
+    proc = subprocess.Popen(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+        cwd=str(workdir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    try:
+        deadline = time.time() + CHECK_HTTP_TIMEOUT
+        last_err = "no response"
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                out = (proc.stdout.read() or "").strip()
+                return (
+                    "ERROR: server command exited (code " + str(proc.returncode)
+                    + ") before answering. output:\n" + truncate(out, 1500)
+                )
+            try:
+                with urllib.request.urlopen(url, timeout=2) as resp:
+                    body = resp.read(2000).decode("utf-8", errors="replace")
+                    return (
+                        "HTTP " + str(resp.status) + " from " + url
+                        + "\nbody:\n" + truncate(body, 800)
+                        + "\n(server started, answered, and was stopped)"
+                    )
+            except Exception as e:
+                last_err = str(e)
+            time.sleep(0.5)
+        return (
+            "ERROR: " + url + " did not answer within "
+            + str(CHECK_HTTP_TIMEOUT) + "s (" + last_err + ")."
+        )
+    finally:
+        if proc.poll() is None:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                capture_output=True,
+            )
+
+
 def run_tool(tool, args, workdir):
     """Execute one non-done tool action; always return an observation string."""
     try:
@@ -248,9 +310,11 @@ def run_tool(tool, args, workdir):
             return tool_list_dir(args, workdir)
         if tool == "run_command":
             return tool_run_command(args, workdir)
+        if tool == "check_http":
+            return tool_check_http(args, workdir)
         return (
             "ERROR: unknown tool " + repr(tool)
-            + ". Valid tools: read_file, write_file, list_dir, run_command, done."
+            + ". Valid tools: read_file, write_file, list_dir, run_command, check_http, done."
         )
     except Exception as e:  # keep the loop alive no matter what a tool does
         return "ERROR: " + type(e).__name__ + ": " + str(e)

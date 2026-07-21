@@ -1,6 +1,6 @@
 # GenAI-Stack-Coder
 
-Fine-tuning **Qwen2.5-Coder-7B** on a single RTX A2000 12GB (native Windows, no admin rights) to do one thing better than models 100× its size: **write correct, current generative-AI application code** — modern OpenAI / Anthropic / Ollama SDK usage, streaming, tool calling, RAG.
+Fine-tuning **Qwen2.5-Coder-7B** on a single RTX A2000 12GB (native Windows, no admin rights) to do one thing better than models 100× its size: **write correct, current generative-AI application code** — modern OpenAI / Anthropic / Ollama SDK usage, streaming, tool calling, structured output.
 
 **Why:** every base model hallucinates 2023-era SDK calls (`openai.ChatCompletion.create`, anyone?). This model is QLoRA-trained exclusively on current, human-written, permissively-licensed example code so it doesn't.
 
@@ -45,7 +45,9 @@ Driven by `agent/agent.py`, **genai-coder wrote `demo/main.py` and `demo/index.h
 cd demo && python main.py   # then open http://127.0.0.1:8000
 ```
 
-**Build mode:** flip the selector next to the input from *Chat* to *Build* and describe something small ("a CLI that stores favorite quotes in a JSON file"). Instead of replying with code to copy-paste, the model runs the agent harness server-side — you watch its write/run/fix loop stream into the chat, and the finished files land in `workspace/<run>/`. Phrase tasks like a spec, not a wish: name the file, the exact command shape and expected output, and the verify commands to run — and prefer CLI-args programs over interactive `input()` apps, which the harness's non-interactive runner cannot verify. ("Can you make a calculator app" yields a stub; "calc.py where `python calc.py 2 + 3` prints 5, `5 / 0` prints an error and exits 1 — verify each" yields working, edge-case-tested software.) (The chat UI stays model-written per above; the Build-mode wiring — the `/agent` endpoint and mode toggle — is human-written infrastructure.)
+**Chat mode** streams answers with proper code blocks (copy button on each), sends the same system prompt the benchmark used, and has a Stop button mid-generation.
+
+**Build mode:** flip the selector next to the input from *Chat* to *Build* and describe something small (template skeletons are in the dropdown). Instead of replying with code to copy-paste, the model runs the agent harness server-side — you watch its write/run/fix loop stream into the chat, and the finished files land in `workspace/<run>/` (listed at the end of each run). Web apps are verified for real: the harness's `check_http` tool starts the server, probes the URL, reports the response, and shuts it down — the model uses it instead of just grepping its own output. Every Build task gets discipline rules appended automatically (no interactive `input()` programs, verify before done, use port 8123 — others are blocked on this box). Phrase tasks like a spec, not a wish: name the file, the exact command shape and expected output, and the verify commands to run — and prefer CLI-args programs over interactive `input()` apps, which the harness's non-interactive runner cannot verify. ("Can you make a calculator app" yields a stub; "calc.py where `python calc.py 2 + 3` prints 5, `5 / 0` prints an error and exits 1 — verify each" yields working, edge-case-tested software.) (The chat UI stays model-written per above; the Build-mode wiring — the `/agent` endpoint and mode toggle — is human-written infrastructure.)
 
 It took 6 attempts to get there; the failures (and the harness fixes they forced) are catalogued in `docs/NOTES.md` — all of them agent-skill issues (JSON-escaping of file bodies, misread tracebacks), none of them SDK-currency issues. The app's FastAPI/requests/Ollama surfaces were current and correct on the first try.
 
