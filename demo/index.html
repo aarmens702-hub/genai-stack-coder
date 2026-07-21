@@ -59,6 +59,19 @@
             letter-spacing: 0.03em;
         }
         #specplate b { color: var(--phos); font-weight: 600; }
+        #sound-toggle {
+            margin-left: auto;
+            padding: 2px 10px;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
+            background: transparent;
+            color: var(--dim);
+            font-family: var(--mono);
+            font-size: 15px;
+            cursor: pointer;
+            transition: color 0.1s, border-color 0.1s;
+        }
+        #sound-toggle:hover { color: var(--phos); border-color: var(--dim); }
         @keyframes pulse { 50% { opacity: 0.3; } }
 
         /* transcript */
@@ -121,6 +134,12 @@
         .chip.build::before { content: "build \203A\00a0"; }
         .chip:hover.build::before { color: var(--bg); }
         .chip.build::before { color: var(--bright); }
+        #snake {
+            display: block;
+            margin: 30px 0 0;
+            opacity: 0.85;
+            image-rendering: pixelated;
+        }
 
         .message {
             margin: 14px 0;
@@ -262,6 +281,7 @@
     <div id="header">
         <h1 id="wordmark">genai-coder</h1>
         <span id="specplate">tty1 &middot; Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; ollama:OK</span>
+        <button id="sound-toggle" title="boot chime">[&#9834; on]</button>
     </div>
     <div id="messages-container">
         <div id="messages-inner">
@@ -273,6 +293,7 @@
                     <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
                     <button class="chip build" data-build="web">verified fastapi endpoint</button>
                 </div>
+                <canvas id="snake" width="336" height="120"></canvas>
             </div>
         </div>
     </div>
@@ -344,6 +365,98 @@
                     chipsEl.classList.add("on");
                 }
             }, 45);
+        }
+
+        // boot chime: an ORIGINAL synthesized swell (the real Windows chime is
+        // copyrighted). Browsers gate audio behind a user gesture, so it plays
+        // on the first click/keypress. [♪] toggle remembers the choice.
+        const soundToggle = document.getElementById("sound-toggle");
+        let soundOn = localStorage.getItem("gc-sound") !== "off";
+        let chimePlayed = false;
+        function renderSoundToggle() {
+            soundToggle.textContent = soundOn ? "[♪ on]" : "[♪ off]";
+        }
+        renderSoundToggle();
+        soundToggle.addEventListener("click", (e) => {
+            e.stopPropagation();
+            soundOn = !soundOn;
+            localStorage.setItem("gc-sound", soundOn ? "on" : "off");
+            renderSoundToggle();
+        });
+        function playChime() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            [[261.63, 0], [392.0, 0.14], [523.25, 0.28]].forEach(([f, t]) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = "triangle";
+                o.frequency.value = f;
+                g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+                g.gain.linearRampToValueAtTime(0.07, ctx.currentTime + t + 0.06);
+                g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 1.2);
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start(ctx.currentTime + t);
+                o.stop(ctx.currentTime + t + 1.3);
+            });
+        }
+        function firstGesture() {
+            if (!chimePlayed && soundOn) {
+                chimePlayed = true;
+                try { playChime(); } catch (e) {}
+            }
+            window.removeEventListener("pointerdown", firstGesture);
+            window.removeEventListener("keydown", firstGesture);
+        }
+        window.addEventListener("pointerdown", firstGesture);
+        window.addEventListener("keydown", firstGesture);
+
+        // ambient snake: self-playing, eats pixel dots on the landing screen,
+        // gone the moment conversation starts
+        const snakeCanvas = document.getElementById("snake");
+        let snakeTimer = null;
+        if (!instantBoot && snakeCanvas) {
+            const g = snakeCanvas.getContext("2d");
+            const CELL = 8, COLS = 42, ROWS = 15;
+            let snake = [[8, 7], [7, 7], [6, 7]];
+            let dir = [1, 0];
+            let food = [24, 7];
+            const css = getComputedStyle(document.documentElement);
+            const C_DIM = css.getPropertyValue("--dim").trim();
+            const C_PHOS = css.getPropertyValue("--phos").trim();
+            const C_BRIGHT = css.getPropertyValue("--bright").trim();
+            function dropFood() {
+                food = [Math.floor(Math.random() * COLS), Math.floor(Math.random() * ROWS)];
+            }
+            function tick() {
+                const head = snake[0];
+                const dx = food[0] - head[0];
+                const dy = food[1] - head[1];
+                let want = Math.abs(dx) >= Math.abs(dy)
+                    ? [Math.sign(dx) || 1, 0]
+                    : [0, Math.sign(dy) || 1];
+                if (want[0] === -dir[0] && want[1] === -dir[1]) {
+                    want = Math.abs(dx) >= Math.abs(dy) ? [0, Math.sign(dy) || 1] : [Math.sign(dx) || 1, 0];
+                }
+                dir = want;
+                const next = [(head[0] + dir[0] + COLS) % COLS, (head[1] + dir[1] + ROWS) % ROWS];
+                snake.unshift(next);
+                if (next[0] === food[0] && next[1] === food[1]) {
+                    dropFood();
+                    if (snake.length > 12) snake.pop();
+                } else {
+                    snake.pop();
+                }
+                g.clearRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+                g.fillStyle = C_BRIGHT;
+                g.fillRect(food[0] * CELL + 2, food[1] * CELL + 2, CELL - 4, CELL - 4);
+                snake.forEach(([x, y], i) => {
+                    g.fillStyle = i === 0 ? C_PHOS : C_DIM;
+                    g.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+                });
+            }
+            snakeTimer = setInterval(tick, 110);
+        } else if (snakeCanvas) {
+            snakeCanvas.style.display = "none";
         }
 
         modeSelect.addEventListener("change", () => {
@@ -496,7 +609,10 @@
         }
 
         function renderMessage(message, isUser) {
-            if (emptyState.style.display !== "none") emptyState.style.display = "none";
+            if (emptyState.style.display !== "none") {
+                emptyState.style.display = "none";
+                if (snakeTimer) { clearInterval(snakeTimer); snakeTimer = null; }
+            }
             const { role, content } = message;
 
             const messageElement = document.createElement("div");
