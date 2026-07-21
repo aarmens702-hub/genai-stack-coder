@@ -671,22 +671,28 @@
                     }
                 } else if (phase === "predator") {
                     if (snake.length > 0) {
-                        pdir = steer(predator[0], snake[0], pdir);
-                        predator.unshift([predator[0][0] + pdir[0], predator[0][1] + pdir[1]]);
-                        predator.pop();
-                        const ph = predator[0];
-                        const sh = snake[0];
-                        if (Math.abs(ph[0] - sh[0]) + Math.abs(ph[1] - sh[1]) <= 1) {
-                            burst(sh[0], sh[1]);
-                            snake.shift();
-                            if (snake.length) snake.shift();
-                        }
-                        // prey flees while it can
-                        if (snake.length > 1) {
-                            dir = steer(snake[0], [(snake[0][0] + 6) % COLS, snake[0][1]], dir);
-                            const flee = [(snake[0][0] + dir[0] + COLS) % COLS, (snake[0][1] + dir[1] + ROWS) % ROWS];
-                            snake.unshift(flee);
+                        // prey keeps living its normal life: chase the food
+                        dir = steer(snake[0], food, dir);
+                        const next = [(snake[0][0] + dir[0] + COLS) % COLS, (snake[0][1] + dir[1] + ROWS) % ROWS];
+                        snake.unshift(next);
+                        if (next[0] === food[0] && next[1] === food[1]) {
+                            burst(next[0], next[1]);
+                            dropFood();
+                        } else {
                             snake.pop();
+                        }
+                        // the big one is simply faster: two steps to the
+                        // prey's one, eating it from the tail
+                        for (let s = 0; s < 2 && snake.length > 0; s++) {
+                            const tail = snake[snake.length - 1];
+                            pdir = steer(predator[0], tail, pdir);
+                            predator.unshift([predator[0][0] + pdir[0], predator[0][1] + pdir[1]]);
+                            predator.pop();
+                            const ph = predator[0];
+                            if (Math.abs(ph[0] - tail[0]) + Math.abs(ph[1] - tail[1]) <= 1) {
+                                burst(tail[0], tail[1]);
+                                snake.pop();
+                            }
                         }
                     } else {
                         // victory lap: keep sliding until the whole tail has
