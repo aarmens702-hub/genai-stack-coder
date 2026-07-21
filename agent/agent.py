@@ -54,21 +54,27 @@ Complete it step by step using tools. Your working directory is:
 {workdir}
 
 RULES:
-- Every reply must contain EXACTLY ONE JSON action object, and nothing after it.
+- Every reply must contain EXACTLY ONE JSON action object.
 - You may write one short line of reasoning before the JSON.
-- The JSON must be valid: inside strings, escape newlines as \\n and double quotes as \\".
+- For write_file, put the COMPLETE file content in ONE fenced code block
+  immediately after the JSON — raw code, no JSON escaping. For every other
+  tool, nothing comes after the JSON.
 - All file paths are relative to the working directory. Paths outside it are rejected.
 - After every action you receive an OBSERVATION message with the result. Read it before acting again.
 
 TOOLS (use exactly these shapes):
 {"tool": "list_dir", "args": {"path": "."}}
 {"tool": "read_file", "args": {"path": "file.py"}}
-{"tool": "write_file", "args": {"path": "file.py", "content": "full file content"}}
+{"tool": "write_file", "args": {"path": "file.py"}}
+```
+full file content here, exactly as it should appear on disk
+```
 {"tool": "run_command", "args": {"cmd": "python file.py"}}
 {"tool": "done", "args": {"message": "what you built and how to run it"}}
 
 NOTES:
-- write_file overwrites the whole file, so always send the complete file content.
+- write_file overwrites the whole file, so the fenced block must hold the
+  complete file content.
 - run_command runs in PowerShell inside the working directory with a 60 second
   timeout. Never start long-running servers with it; verify with quick commands.
 - Verify your work with run_command (run the script, check imports) before "done".
@@ -79,7 +85,10 @@ NOTES:
 
 EXAMPLE REPLY:
 I will create the script first.
-{"tool": "write_file", "args": {"path": "hello.py", "content": "print('hi')\\n"}}
+{"tool": "write_file", "args": {"path": "hello.py"}}
+```python
+print('hi')
+```
 """
 
 
@@ -89,11 +98,16 @@ def truncate(text, limit):
     return text[:limit] + "\n...[truncated " + str(len(text) - limit) + " chars]"
 
 
-def extract_action(text):
-    """Return the first JSON object in text that has a "tool" key, else None.
+FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
 
-    Handles bare JSON, JSON inside code fences, JSON preceded by prose, and
-    (via a cleanup pass) trailing commas.
+
+def extract_action_span(text):
+    """Return (action, end_index) for the first JSON object with a "tool" key.
+
+    end_index points just past the JSON, so callers can look for content (e.g.
+    a fenced file body) that follows it. Handles bare JSON, JSON inside code
+    fences, JSON preceded by prose, and (via a cleanup pass) trailing commas.
+    Returns (None, None) if no action is found.
     """
     decoder = json.JSONDecoder()
     for i, ch in enumerate(text):
@@ -103,13 +117,23 @@ def extract_action(text):
         cleaned = re.sub(r",\s*([}\]])", r"\1", chunk)  # drop trailing commas
         for candidate in (chunk, cleaned):
             try:
-                obj, _ = decoder.raw_decode(candidate)
+                obj, end = decoder.raw_decode(candidate)
             except json.JSONDecodeError:
                 continue
             if isinstance(obj, dict) and "tool" in obj:
-                return obj
+                return obj, i + end
             break  # parsed fine but not an action; keep scanning from next {
-    return None
+    return None, None
+
+
+def extract_action(text):
+    return extract_action_span(text)[0]
+
+
+def fenced_content_after(text, start):
+    """Return the body of the first fenced code block at/after start, else None."""
+    m = FENCE_RE.search(text, start)
+    return m.group(1) if m else None
 
 
 def resolve_inside(workdir, path):
@@ -151,6 +175,11 @@ def tool_write_file(args, workdir):
     raw = args.get("path")
     if not raw:
         return "ERROR: write_file needs a 'path' arg."
+    if "content" not in args:
+        return (
+            "ERROR: write_file got no file content. Put the COMPLETE file in one"
+            " fenced code block immediately after the JSON action."
+        )
     path = resolve_inside(workdir, str(raw))
     if path is None:
         return path_rejected(raw, workdir)
@@ -235,6 +264,7 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
         {"role": "system", "content": SYSTEM_PROMPT.replace("{workdir}", str(workdir))},
         {"role": "user", "content": "TASK:\n" + task},
     ]
+    pending_write = None  # path of a write_file still waiting for its file body
     for i in range(1, max_iters + 1):
         resp = client.chat.completions.create(
             model=model, messages=messages, temperature=temperature
@@ -242,7 +272,14 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
         reply = (resp.choices[0].message.content or "").strip()
         messages.append({"role": "assistant", "content": reply})
 
-        action = extract_action(reply)
+        action, span_end = extract_action_span(reply)
+        if action is None and pending_write is not None:
+            fenced = fenced_content_after(reply, 0)
+            if fenced is not None:
+                # the model answered the previous content-less write_file with a
+                # bare fenced block: treat it as that file's body
+                action = {"tool": "write_file",
+                          "args": {"path": pending_write, "content": fenced}}
         if action is None:
             print("[" + str(i) + "/" + str(max_iters) + "] no valid action in reply:")
             print("  " + truncate(reply, PRINT_LIMIT).replace("\n", "\n  "))
@@ -253,6 +290,11 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
         else:
             tool = action.get("tool")
             args = action.get("args") if isinstance(action.get("args"), dict) else {}
+            pending_write = None
+            if tool == "write_file" and "content" not in args:
+                fenced = fenced_content_after(reply, span_end)
+                if fenced is not None:
+                    args["content"] = fenced
             print(
                 "[" + str(i) + "/" + str(max_iters) + "] " + str(tool) + " "
                 + truncate(json.dumps(args), PRINT_LIMIT)
@@ -260,7 +302,15 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
             if tool == "done":
                 print("\n[done] " + str(args.get("message", "")))
                 return True
-            obs = run_tool(tool, args, workdir)
+            if tool == "write_file" and "content" not in args and args.get("path"):
+                pending_write = str(args["path"])
+                obs = (
+                    "write_file for " + pending_write + " received no file content."
+                    " Reply with ONE fenced code block containing the COMPLETE"
+                    " contents of " + pending_write + " and nothing else."
+                )
+            else:
+                obs = run_tool(tool, args, workdir)
 
         obs = truncate(obs, OBS_LIMIT)
         print("  observation: " + obs.replace("\n", "\n  "))

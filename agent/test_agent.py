@@ -138,6 +138,56 @@ def test_scripted_session():
         assert len(obs_msgs) == 2  # one per executed action before done
 
 
+def test_fenced_write():
+    with tempfile.TemporaryDirectory() as wd:
+        client = FakeClient([
+            'Writing the file.\n'
+            '{"tool": "write_file", "args": {"path": "app.py"}}\n'
+            '```python\n'
+            'print("/")\n'
+            'x = 1\n'
+            '```',
+            json.dumps({"tool": "done", "args": {"message": "d"}}),
+        ])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
+        assert ok is True
+        written = (Path(wd) / "app.py").read_text(encoding="utf-8")
+        assert written == 'print("/")\nx = 1\n'
+
+
+def test_write_without_content_prompts_for_fence():
+    with tempfile.TemporaryDirectory() as wd:
+        client = FakeClient([
+            '{"tool": "write_file", "args": {"path": "app.py"}}',  # no fence, no content
+            json.dumps({"tool": "done", "args": {"message": "d"}}),
+        ])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
+        assert ok is True
+        assert not (Path(wd) / "app.py").exists()
+        sent = client.last_kwargs["messages"]
+        obs = [m["content"] for m in sent
+               if m["role"] == "user" and m["content"].startswith("OBSERVATION:")]
+        assert "received no file content" in obs[0]
+
+
+def test_split_fenced_write():
+    """JSON action in one reply, bare fenced file body in the next."""
+    with tempfile.TemporaryDirectory() as wd:
+        client = FakeClient([
+            '{"tool": "write_file", "args": {"path": "app.py"}}',
+            '```python\nprint("/")\n```',
+            json.dumps({"tool": "done", "args": {"message": "d"}}),
+        ])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
+        assert ok is True
+        written = (Path(wd) / "app.py").read_text(encoding="utf-8")
+        assert written == 'print("/")\n'
+        sent = client.last_kwargs["messages"]
+        obs = [m["content"] for m in sent
+               if m["role"] == "user" and m["content"].startswith("OBSERVATION:")]
+        assert "Wrote" in obs[1]
+
+
 def test_repeated_write_warns():
     with tempfile.TemporaryDirectory() as wd:
         same = json.dumps({"tool": "write_file",
@@ -172,6 +222,9 @@ TESTS = [
     test_done_ends_loop,
     test_max_iters_stops,
     test_scripted_session,
+    test_fenced_write,
+    test_write_without_content_prompts_for_fence,
+    test_split_fenced_write,
     test_repeated_write_warns,
     test_truncation,
 ]

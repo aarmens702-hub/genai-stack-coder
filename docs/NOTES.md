@@ -2,6 +2,18 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-20 — Phases 7+8 COMPLETE: the model built its own chat app (attempt 6)
+
+- Finale run: **7 iterations** — write main.py, write index.html, `python -c "import main"` exit 0, `Select-String getReader` match, done. My end-to-end check: GET / → 200 with the model's page; POST /chat → 200 streaming **40 per-token chunks** (+2.73s…+3.65s). The app genai-coder wrote serves genai-coder.
+- Six attempts; every failure was agent-skill, never SDK currency (the app's FastAPI/requests/Ollama surfaces were correct on first emission every time):
+  1. `await request.json()` in a sync `def`; rewrote the byte-identical file 7× ignoring the traceback. → harness warns on byte-identical rewrites; spec states the exact `async def` lines.
+  2. Pasted HTML/CSS into main.py, then kept "fixing" index.html because the traceback *showed* CSS (it named main.py); never used read_file. → system-prompt rule: read_file the file the traceback names, then fix THAT file.
+  3. Obeyed the new rule (read main.py!) but re-emitted `@app.get(")` — it cannot reliably compose the `\"/\"` escape inside JSON strings at temp 0.2.
+  4. temp 0.7 (new `--temperature` flag): escape rut broken, protocol broken — 9/25 replies had no parseable action; never wrote a file. Temperature is not the fix.
+  5. Root-cause fix: write_file bodies moved OUT of JSON into a fenced block after the action. The fenced code was **flawless** — but the model sends JSON and fence as two separate replies, which the harness didn't yet accept.
+  6. Harness accepts the split (pending-write path + fence-only continuation reply) → clean 7-step success at temp 0.2.
+- Protocol lesson worth keeping: with a 7B@Q4, never make the model escape file bodies into JSON strings; fenced blocks are its native emission format. Protocol tests now 16/16 (`agent/test_agent.py`); all six attempt logs in `agent/logs/`.
+
 ## 2026-07-16 — Phases 5+6 COMPLETE: 12% → 72% on the SDK-currency benchmark
 
 - **genai-coder (tuned, Q4_K_M via Ollama): 36/50 = 72%** vs base 6/50 = 12%. Per SDK: openai 5%→70%, anthropic 5%→75%, ollama 40%→70%. Regressions vs base: `openai-20`, `ollama-06` (2 lost vs 32 gained — inspect when convenient).

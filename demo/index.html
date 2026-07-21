@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat</title>
+    <style>
+        #log {
+            white-space: pre-wrap;
+            border: 1px solid #ccc;
+            padding: 5px;
+            width: 300px;
+            height: 200px;
+            overflow-y: scroll;
+        }
+        #msg {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div id="log"></div><br>
+    <input id="msg" placeholder="Type a message..."><button onclick="send()">Send</button>
+
+    <script>
+        async function send() {
+            const msg = document.getElementById('msg').value;
+            if (!msg) return;
+
+            const log = document.getElementById('log');
+            log.innerHTML += `[user] ${msg}\n`;
+
+            const replyDiv = document.createElement('div');
+            log.appendChild(replyDiv);
+
+            const body = { message: msg };
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const decoder = response.body.getReader();
+                while (true) {
+                    const { done, value } = await decoder.read();
+                    if (done) break;
+                    replyDiv.textContent += new TextDecoder().decode(value);
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+
+            document.getElementById('msg').value = '';
+        }
+
+        document.getElementById('msg').addEventListener('keypress', event => {
+            if (event.key === 'Enter') send();
+        });
+    </script>
+</body>
+</html>

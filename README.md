@@ -21,8 +21,8 @@ data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-
 - [x] Phase 4 — QLoRA training (748 steps / 2 epochs, 4h57m on the A2000, final train loss 0.59)
 - [x] Phase 5 — eval: base vs tuned SDK-currency pass rates (**12% → 72%**, table below)
 - [x] Phase 6 — package: GGUF Q4_K_M → `ollama run genai-coder`
-- [ ] Phase 7 — agent harness
-- [ ] Phase 8 — finale: model builds its own chat app
+- [x] Phase 7 — agent harness (ReAct/JSON protocol with fenced file writes; `agent/`)
+- [x] Phase 8 — finale: the model built `demo/` itself in 7 agent iterations (below)
 
 ## Results
 
@@ -36,6 +36,16 @@ data harvest → instruct pairs → filter/dedupe → QLoRA train → eval (SDK-
 | **total** | **6/50 (12%)** | **36/50 (72%)** |
 
 Canonical "before" example — the base model answers a streaming question with `openai.ChatCompletion.create(stream=True)`, removed from the SDK in Nov 2023; the tuned model instantiates the current `OpenAI()` client and streams with the `client.chat.completions.stream(...)` helper.
+
+## Finale
+
+Driven by `agent/agent.py`, **genai-coder wrote `demo/main.py` and `demo/index.html` itself** (7 iterations: two fenced file writes, two verify commands, done) — a FastAPI backend that proxies Ollama's `/api/generate` as a `StreamingResponse`, and a vanilla-JS page that renders the stream via `getReader()`. Verified end-to-end: the reply arrives as ~per-token chunks, served by the very model that wrote the code.
+
+```
+cd demo && python main.py   # then open http://127.0.0.1:8000
+```
+
+It took 6 attempts to get there; the failures (and the harness fixes they forced) are catalogued in `docs/NOTES.md` — all of them agent-skill issues (JSON-escaping of file bodies, misread tracebacks), none of them SDK-currency issues. The app's FastAPI/requests/Ollama surfaces were current and correct on the first try.
 
 ## Layout
 
