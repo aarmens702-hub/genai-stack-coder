@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -299,6 +300,15 @@ def tool_check_http(args, workdir):
                         + "\nbody:\n" + truncate(body, 800)
                         + "\n(server started, answered, and was stopped)"
                     )
+            except urllib.error.HTTPError as e:
+                # 4xx/5xx is still an answer: the server is up. Report it so
+                # the model can fix the route instead of thinking it is down.
+                body = e.read(2000).decode("utf-8", errors="replace")
+                return (
+                    "HTTP " + str(e.code) + " from " + url
+                    + "\nbody:\n" + truncate(body, 800)
+                    + "\n(server started, answered, and was stopped)"
+                )
             except Exception as e:
                 last_err = str(e)
             time.sleep(0.5)

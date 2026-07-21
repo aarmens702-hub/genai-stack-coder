@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-21 — Goal loop: full chat+build test matrix, fix until green
+
+- Chat matrix C1-C7 (recall→prose, knowledge→prose, explicit code, terse-SDK override, code follow-up "now make it async", thanks, greeting): **7/7 PASS**, recall stable 3/3 identical. Root cause of all prior chat flakiness: `/chat` never set a temperature — Ollama's 0.8 default made every answer a dice roll while everything was measured at 0.2. Pinned 0.2; plain-chat prompt upgraded to the proven firmer wording.
+- Build matrix: greet **PASS** (4 steps), web **PASS ×2** — both runs disobeyed "never run a server with run_command", hit the new timeout observation (which includes the literal check_http action to use), copied it verbatim, HTTP 200, done. Observations > rules, proven twice. cli **PASS** (both verifies model-run + artifact independently confirmed), lazy "make a todo app" **PASS on guardrail criteria** (no `input()`, real verifies, files) but no `done` — one-line wishes stay a completion coin-flip at 7B; templates are the cure. abort **PASS** (disconnect kills the run at the next stream line — 2s and 85s observed; contract is ~one model step, not instant).
+- Bugs found & fixed by the loop: (1) `run_command` timeout killed only the powershell wrapper — orphaned servers held port 8123 and broke every later check_http; now Popen + `taskkill /T /F`. (2) `check_http` treated 4xx/5xx as "no answer" — a 404 is an ANSWER (server up, wrong route); now reported with body so the model can fix the route. Suite 22/22.
+- Mystery solved: the "self-nesting agent.py/app.py" process trees were the Windows venv launcher shim — venv `python.exe` spawns the base interpreter with identical argv, so every venv process shows as a parent+child pair. The nesting was an illusion; the orphaning was real (and is fixed).
+
 ## 2026-07-21 — Chat intent routing: semantic questions get prose, not code
 
 - User pain: every conversational message ("what's my favorite number") got SDK code back — worsened by the benchmark system prompt I'd just wired into `/chat` ("always use current APIs" turns everything into an API demo). Also fixed en route: stopping a reply left the user turn unanswered in history, and the model kept re-fulfilling that dangling request on every later turn (`e1e85ce`).

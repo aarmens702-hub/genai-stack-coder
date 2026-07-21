@@ -226,6 +226,18 @@ def test_check_http_rejects_remote():
         assert "only accepts localhost" in obs
 
 
+def test_check_http_404_is_an_answer():
+    with tempfile.TemporaryDirectory() as wd:
+        obs = agent.run_tool(
+            "check_http",
+            {"cmd": "python -m http.server 8126 --bind 127.0.0.1",
+             "url": "http://127.0.0.1:8126/missing.html"},
+            wd,
+        )
+        assert "HTTP 404" in obs
+        assert "answered" in obs
+
+
 def test_check_http_dead_server():
     with tempfile.TemporaryDirectory() as wd:
         obs = agent.run_tool(
@@ -292,6 +304,7 @@ TESTS = [
     test_blank_content_prefers_fence,
     test_check_http_happy,
     test_check_http_rejects_remote,
+    test_check_http_404_is_an_answer,
     test_check_http_dead_server,
     test_done_rejected_while_write_pending,
     test_repeated_write_warns,
