@@ -92,26 +92,97 @@
         }
         #messages-container::-webkit-scrollbar-thumb:hover { background: var(--dim); }
 
+        /* landing column */
+        #landing {
+            max-width: 960px;
+            margin: 3vh auto 0;
+            padding-bottom: 30px;
+        }
+        #landing.gone #welcome-box { display: none; }
+        #landing.gone { margin: 0; padding: 0; }
+
         /* the terminal window */
         #term-box {
-            position: fixed;
-            left: 50%;
-            top: 13%;
-            transform: translateX(-50%);
             width: 660px;
             max-width: 94vw;
+            margin: 0 auto 30px;
             background-color: var(--bg);
             border: 4px double var(--faint);
             box-shadow: 0 0 30px rgba(255, 176, 0, 0.06);
             z-index: 5;
-            transition: left 0.4s ease, top 0.4s ease, width 0.4s ease, transform 0.4s ease;
+            transition: left 0.4s ease, top 0.4s ease, width 0.4s ease;
             animation: term-open 0.3s ease-out;
-            transform-origin: center center;
+            transform-origin: top center;
         }
         @keyframes term-open {
-            0% { transform: translateX(-50%) scale(1, 0.04); opacity: 0.4; }
-            60% { transform: translateX(-50%) scale(1, 1.02); opacity: 1; }
-            100% { transform: translateX(-50%) scale(1, 1); }
+            0% { transform: scale(1, 0.04); opacity: 0.4; }
+            60% { transform: scale(1, 1.02); opacity: 1; }
+            100% { transform: scale(1, 1); }
+        }
+
+        /* welcome window, claude-code style */
+        #welcome-box {
+            position: relative;
+            width: 100%;
+            border: 1px solid var(--dim);
+            border-radius: 8px;
+            padding: 20px 22px 18px;
+            margin: 0 auto;
+            animation: term-open 0.3s ease-out;
+        }
+        .float-title {
+            position: absolute;
+            top: -12px;
+            left: 18px;
+            background-color: var(--bg);
+            padding: 0 10px;
+            color: var(--phos);
+            font-size: 17px;
+        }
+        #welcome-cols {
+            display: flex;
+            gap: 22px;
+        }
+        #welcome-left {
+            flex: 0 0 300px;
+            text-align: center;
+            padding-top: 6px;
+        }
+        .wl-hello { color: var(--bright); font-size: 20px; }
+        #sprite { display: block; margin: 16px auto 12px; image-rendering: pixelated; }
+        .wl-meta { color: var(--dim); font-size: 15px; line-height: 1.5; }
+        #welcome-right {
+            flex: 1;
+            border-left: 1px solid var(--faint);
+            padding-left: 22px;
+        }
+        .wr-head { color: var(--phos); font-size: 18px; margin-bottom: 4px; }
+        .wr-line { color: var(--dim); font-size: 16px; line-height: 1.45; }
+        .dim-it { font-style: italic; opacity: 0.8; }
+        #about {
+            margin-top: 16px;
+            border-top: 1px solid var(--faint);
+            padding-top: 12px;
+        }
+        #about-scroll {
+            max-height: 190px;
+            overflow-y: auto;
+            padding-right: 12px;
+        }
+        #about-scroll p {
+            color: var(--dim);
+            font-size: 16px;
+            line-height: 1.45;
+            margin: 0 0 10px;
+        }
+        #about-scroll::-webkit-scrollbar { width: 8px; }
+        #about-scroll::-webkit-scrollbar-track { background: transparent; }
+        #about-scroll::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 4px; }
+        #about-scroll::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+        @media (max-width: 760px) {
+            #welcome-cols { flex-direction: column; }
+            #welcome-left { flex: none; }
+            #welcome-right { border-left: none; padding-left: 0; }
         }
         #term-title {
             display: flex;
@@ -127,10 +198,12 @@
         #term-glyphs { color: var(--faint); }
         #term-body { padding: 14px 20px 18px; }
         #term-box.docked {
+            position: fixed;
             left: calc(100vw - 420px);
             top: 62px;
             width: 400px;
             transform: none;
+            animation: none;
         }
         #term-box.docked #chips { display: none; }
         #term-box.docked #boot { font-size: 15px; }
@@ -327,23 +400,55 @@
         <span id="specplate">tty1 &middot; Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; ollama:OK</span>
         <button id="sound-toggle" title="boot chime">[&#9834; on]</button>
     </div>
-    <div id="term-box">
-        <div id="term-title">
-            <span>genai-coder.exe</span>
-            <span id="term-glyphs">&#9472;&nbsp;&#9633;&nbsp;&#215;</span>
-        </div>
-        <div id="term-body">
-            <pre id="boot"></pre>
-            <div id="chips">
-                <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">[1] stream an openai chat reply</button>
-                <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">[2] claude tool calling</button>
-                <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
-                <button class="chip build" data-build="web">verified fastapi endpoint</button>
-            </div>
-            <canvas id="snake" width="336" height="120"></canvas>
-        </div>
-    </div>
     <div id="messages-container">
+        <div id="landing">
+            <div id="term-box">
+                <div id="term-title">
+                    <span>genai-coder.exe</span>
+                    <span id="term-glyphs">&#9472;&nbsp;&#9633;&nbsp;&#215;</span>
+                </div>
+                <div id="term-body">
+                    <pre id="boot"></pre>
+                    <div id="chips">
+                        <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">[1] stream an openai chat reply</button>
+                        <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">[2] claude tool calling</button>
+                        <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
+                        <button class="chip build" data-build="web">verified fastapi endpoint</button>
+                    </div>
+                    <canvas id="snake" width="336" height="120"></canvas>
+                </div>
+            </div>
+            <div id="welcome-box">
+                <span class="float-title">genai-coder v1.0</span>
+                <div id="welcome-cols">
+                    <div id="welcome-left">
+                        <div class="wl-hello">Welcome back, Aarmen!</div>
+                        <canvas id="sprite" width="60" height="48"></canvas>
+                        <div class="wl-meta">Qwen2.5-Coder-7B &middot; QLoRA fine-tune<br>100% local &middot; no api keys<br>~\documents\genai-stack-coder</div>
+                    </div>
+                    <div id="welcome-right">
+                        <div class="wr-head">Tips for getting started</div>
+                        <div class="wr-line">chat: ask for current OpenAI / Anthropic / Ollama code</div>
+                        <div class="wr-line">build: write a spec, not a wish &mdash; the presets show the shape</div>
+                        <div class="wr-line">web apps it builds get verified for real via check_http</div>
+                        <div class="wr-head" style="margin-top: 14px;">What's new</div>
+                        <div class="wr-line">chat answers plain questions in prose (intent routing)</div>
+                        <div class="wr-line">build mode: the model writes, runs, and fixes files itself</div>
+                        <div class="wr-line">amber terminal UI &middot; boot chime &middot; resident snake</div>
+                        <div class="wr-line dim-it">docs/NOTES.md for the full engineering log</div>
+                    </div>
+                </div>
+                <div id="about">
+                    <div class="wr-head">About this project</div>
+                    <div id="about-scroll">
+                        <p>Every base model writes 2023-era AI code &mdash; ask one for OpenAI and you get APIs deleted years ago. genai-coder is Qwen2.5-Coder-7B trained out of that habit on 6,665 question&rarr;code pairs whose answers are all current, human-written example code harvested from permissively-licensed SDK repos and cookbooks. A local model wrote the questions; humans wrote every answer.</p>
+                        <p>Training ran overnight on this machine's RTX A2000 (12 GB): QLoRA rank-16 adapters over the 4-bit base, 748 steps in about five hours, peak 9.8 GB VRAM, final train loss 0.59. The merged model was quantized to GGUF Q4_K_M (4.7 GB) and registered with Ollama &mdash; the same server answering this page right now.</p>
+                        <p>On a 50-prompt SDK-currency benchmark the stock model scores 12%; this fine-tune scores 72%. In the failure analysis, not one of its answers used a deprecated API &mdash; the habit it was trained against is gone.</p>
+                        <p>The finale: driven by a small agent harness, the model wrote this chat app's first version itself &mdash; files, verification, and all &mdash; and Build mode still does that live: it writes code to disk, runs it, reads the errors, fixes them, and proves servers work with real HTTP requests. Everything happens on this machine. Nothing leaves it.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="messages-inner"></div>
     </div>
     <div id="input-row">
@@ -462,50 +567,123 @@
         window.addEventListener("pointerdown", firstGesture);
         window.addEventListener("keydown", firstGesture);
 
-        // ambient snake: self-playing, eats pixel dots on the landing screen,
-        // gone the moment conversation starts
+        // pixel mascot for the welcome window
+        const spriteCanvas = document.getElementById("sprite");
+        if (spriteCanvas) {
+            const sg = spriteCanvas.getContext("2d");
+            const MAP = [
+                "..#....#..",
+                "..#....#..",
+                ".########.",
+                "##########",
+                "##.####.##",
+                "##########",
+                ".#..##..#.",
+                "#..#..#..#",
+            ];
+            sg.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--phos").trim();
+            MAP.forEach((row, y) => {
+                [...row].forEach((c, x) => {
+                    if (c === "#") sg.fillRect(x * 6, y * 6, 6, 6);
+                });
+            });
+        }
+
+        // ambient snake: grows as it eats; at full length a bigger predator
+        // snake sweeps in, eats it, and leaves -- then it all begins again
         const snakeCanvas = document.getElementById("snake");
         let snakeTimer = null;
         if (!instantBoot && snakeCanvas) {
             const g = snakeCanvas.getContext("2d");
             const CELL = 8, COLS = 42, ROWS = 15;
-            let snake = [[8, 7], [7, 7], [6, 7]];
-            let dir = [1, 0];
-            let food = [24, 7];
+            const FULL = 12;
+            let snake, dir, food, phase, predator, pdir;
             const css = getComputedStyle(document.documentElement);
+            const C_FAINT = css.getPropertyValue("--faint").trim();
             const C_DIM = css.getPropertyValue("--dim").trim();
             const C_PHOS = css.getPropertyValue("--phos").trim();
             const C_BRIGHT = css.getPropertyValue("--bright").trim();
+            function resetWorld() {
+                snake = [[8, 7], [7, 7], [6, 7]];
+                dir = [1, 0];
+                phase = "grow";
+                predator = null;
+                dropFood();
+            }
             function dropFood() {
                 food = [Math.floor(Math.random() * COLS), Math.floor(Math.random() * ROWS)];
             }
-            function tick() {
-                const head = snake[0];
-                const dx = food[0] - head[0];
-                const dy = food[1] - head[1];
+            function steer(from, target, current) {
+                const dx = target[0] - from[0];
+                const dy = target[1] - from[1];
                 let want = Math.abs(dx) >= Math.abs(dy)
                     ? [Math.sign(dx) || 1, 0]
                     : [0, Math.sign(dy) || 1];
-                if (want[0] === -dir[0] && want[1] === -dir[1]) {
-                    want = Math.abs(dx) >= Math.abs(dy) ? [0, Math.sign(dy) || 1] : [Math.sign(dx) || 1, 0];
+                if (want[0] === -current[0] && want[1] === -current[1]) {
+                    want = Math.abs(dx) >= Math.abs(dy)
+                        ? [0, Math.sign(dy) || 1]
+                        : [Math.sign(dx) || 1, 0];
                 }
-                dir = want;
-                const next = [(head[0] + dir[0] + COLS) % COLS, (head[1] + dir[1] + ROWS) % ROWS];
-                snake.unshift(next);
-                if (next[0] === food[0] && next[1] === food[1]) {
-                    dropFood();
-                    if (snake.length > 12) snake.pop();
-                } else {
-                    snake.pop();
+                return want;
+            }
+            function tick() {
+                if (phase === "grow") {
+                    dir = steer(snake[0], food, dir);
+                    const next = [(snake[0][0] + dir[0] + COLS) % COLS, (snake[0][1] + dir[1] + ROWS) % ROWS];
+                    snake.unshift(next);
+                    if (next[0] === food[0] && next[1] === food[1]) {
+                        dropFood();
+                        if (snake.length >= FULL) {
+                            phase = "predator";
+                            predator = [];
+                            for (let i = 0; i < 8; i++) predator.push([-2 - i, 7]);
+                            pdir = [1, 0];
+                        }
+                    } else {
+                        snake.pop();
+                    }
+                } else if (phase === "predator") {
+                    if (snake.length > 0) {
+                        pdir = steer(predator[0], snake[0], pdir);
+                        predator.unshift([predator[0][0] + pdir[0], predator[0][1] + pdir[1]]);
+                        predator.pop();
+                        const ph = predator[0];
+                        const sh = snake[0];
+                        if (Math.abs(ph[0] - sh[0]) + Math.abs(ph[1] - sh[1]) <= 1) {
+                            snake.shift();
+                            if (snake.length) snake.shift();
+                        }
+                        // prey flees while it can
+                        if (snake.length > 1) {
+                            dir = steer(snake[0], [(snake[0][0] + 6) % COLS, snake[0][1]], dir);
+                            const flee = [(snake[0][0] + dir[0] + COLS) % COLS, (snake[0][1] + dir[1] + ROWS) % ROWS];
+                            snake.unshift(flee);
+                            snake.pop();
+                        }
+                    } else {
+                        pdir = [1, 0];
+                        predator.unshift([predator[0][0] + 1, predator[0][1]]);
+                        predator.pop();
+                        if (predator[0][0] > COLS + 8) resetWorld();
+                    }
                 }
                 g.clearRect(0, 0, snakeCanvas.width, snakeCanvas.height);
-                g.fillStyle = C_BRIGHT;
-                g.fillRect(food[0] * CELL + 2, food[1] * CELL + 2, CELL - 4, CELL - 4);
+                if (phase === "grow" || snake.length) {
+                    g.fillStyle = C_BRIGHT;
+                    g.fillRect(food[0] * CELL + 2, food[1] * CELL + 2, CELL - 4, CELL - 4);
+                }
                 snake.forEach(([x, y], i) => {
                     g.fillStyle = i === 0 ? C_PHOS : C_DIM;
                     g.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
                 });
+                if (predator) {
+                    predator.forEach(([x, y], i) => {
+                        g.fillStyle = i === 0 ? C_BRIGHT : C_PHOS;
+                        g.fillRect(x * CELL - 1, y * CELL - 1, CELL + 2, CELL + 2);
+                    });
+                }
             }
+            resetWorld();
             snakeTimer = setInterval(tick, 110);
         } else if (snakeCanvas) {
             snakeCanvas.style.display = "none";
@@ -662,9 +840,23 @@
 
         function renderMessage(message, isUser) {
             if (!termBox.classList.contains("docked")) {
-                // first prompt: the terminal window glides to the right and
-                // stays as a status panel (snake included)
-                termBox.classList.add("docked");
+                // first prompt: FLIP the window from its in-flow spot to a
+                // fixed dock at the right, letting CSS transition the glide
+                const r = termBox.getBoundingClientRect();
+                termBox.style.position = "fixed";
+                termBox.style.left = r.left + "px";
+                termBox.style.top = r.top + "px";
+                termBox.style.width = r.width + "px";
+                termBox.style.margin = "0";
+                document.getElementById("landing").classList.add("gone");
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        termBox.classList.add("docked");
+                        termBox.style.left = "";
+                        termBox.style.top = "";
+                        termBox.style.width = "";
+                    });
+                });
                 document.body.classList.add("docked");
             }
             const { role, content } = message;
