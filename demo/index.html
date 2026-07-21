@@ -6,129 +6,136 @@
     <title>genai-coder</title>
     <style>
         :root {
-            --bg: #14161a;
-            --panel: #1c1f26;
-            --line: #2a2e37;
-            --text: #e8e6e1;
-            --muted: #9094a6;
-            --amber: #e8a13c;
+            --bg: #0a0908;
+            --phos: #ffb000;
+            --dim: #96742e;
+            --faint: #4a3c1c;
+            --bright: #ffd580;
+            --glow: 0 0 8px rgba(255, 176, 0, 0.22);
             --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
-            --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
-            font-family: var(--sans);
+            font-family: var(--mono);
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--phos);
             display: flex;
             flex-direction: column;
             height: 100vh;
+            font-size: 14px;
+            line-height: 1.55;
         }
+        ::selection { background: var(--phos); color: var(--bg); }
 
-        /* header: the spec plate */
+        /* status line */
         #header {
             display: flex;
             align-items: baseline;
-            gap: 14px;
-            padding: 14px 28px;
-            border-bottom: 1px solid var(--line);
-            background-color: var(--panel);
+            gap: 12px;
+            padding: 10px 22px;
+            border-bottom: 1px solid var(--faint);
+            flex-wrap: wrap;
         }
         #wordmark {
-            font-family: var(--mono);
-            font-size: 19px;
+            font-size: 15px;
             font-weight: 700;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.04em;
             margin: 0;
+            color: var(--bright);
+            text-shadow: var(--glow);
         }
         #wordmark::before {
-            content: "";
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--amber);
-            margin-right: 9px;
-            vertical-align: 1px;
+            content: "\25AA ";
+            color: var(--phos);
             animation: pulse 2.4s ease-in-out infinite;
         }
         #specplate {
-            font-family: var(--mono);
-            font-size: 12.5px;
-            color: var(--muted);
-            letter-spacing: 0.02em;
+            font-size: 12px;
+            color: var(--dim);
+            letter-spacing: 0.03em;
         }
-        #specplate b { color: var(--amber); font-weight: 600; }
-        @keyframes pulse { 50% { opacity: 0.35; } }
+        #specplate b { color: var(--phos); font-weight: 600; }
+        @keyframes pulse { 50% { opacity: 0.3; } }
 
-        /* messages */
+        /* transcript */
         #messages-container {
             flex: 1;
             overflow-y: auto;
-            padding: 28px 24px 16px;
+            padding: 22px 22px 12px;
         }
         #messages-inner, #input-inner {
-            max-width: 860px;
+            max-width: 900px;
             margin: 0 auto;
         }
-        #empty-state {
-            margin-top: 16vh;
-            text-align: center;
-            color: var(--muted);
-            font-size: 14.5px;
-            line-height: 1.7;
+        #messages-container::-webkit-scrollbar { width: 10px; }
+        #messages-container::-webkit-scrollbar-track { background: var(--bg); }
+        #messages-container::-webkit-scrollbar-thumb {
+            background: var(--faint);
+            border-radius: 5px;
         }
+        #messages-container::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+        #boot {
+            margin: 4vh 0 0;
+            font-size: 13.5px;
+            color: var(--dim);
+            white-space: pre-wrap;
+            text-shadow: var(--glow);
+        }
+        #boot .ok { color: var(--phos); }
+        #boot .val { color: var(--bright); }
         #chips {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            max-width: 620px;
-            margin: 22px auto 0;
+            gap: 8px;
+            margin-top: 14px;
+            visibility: hidden;
         }
+        #chips.on { visibility: visible; }
         .chip {
             font-family: var(--mono);
             font-size: 12.5px;
-            color: var(--text);
-            background-color: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 9px 14px;
+            color: var(--phos);
+            background: transparent;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
+            padding: 7px 12px;
             cursor: pointer;
+            transition: background-color 0.1s, color 0.1s, border-color 0.1s;
         }
         .chip:hover, .chip:focus-visible {
-            border-color: var(--amber);
-            color: var(--amber);
+            background-color: var(--phos);
+            color: var(--bg);
+            border-color: var(--phos);
             outline: none;
+            text-shadow: none;
         }
-        .chip.build::before {
-            content: "build \203A\00a0";
-            color: var(--amber);
-        }
+        .chip.build::before { content: "build \203A\00a0"; }
+        .chip:hover.build::before { color: var(--bg); }
+        .chip.build::before { color: var(--bright); }
+
         .message {
-            max-width: 78%;
-            margin: 10px 0;
-            padding: 10px 14px;
-            border-radius: 10px;
+            margin: 14px 0;
             white-space: pre-wrap;
             word-break: break-word;
-            line-height: 1.55;
-            font-size: 14.5px;
-            border: 1px solid transparent;
+            max-width: 100%;
         }
         .user-message {
-            background-color: #262b35;
-            margin-left: auto;
+            color: var(--dim);
+        }
+        .user-message::before {
+            content: "> ";
+            color: var(--phos);
         }
         .assistant-message {
-            background-color: var(--panel);
-            border-color: var(--line);
-            margin-right: auto;
+            color: var(--phos);
+            padding-left: 14px;
+            border-left: 2px solid var(--faint);
         }
         .message.streaming::after {
-            content: "\258D";
-            color: var(--amber);
+            content: "\2588";
+            color: var(--bright);
             animation: blink 1s steps(1) infinite;
         }
         @keyframes blink { 50% { opacity: 0; } }
@@ -137,123 +144,137 @@
         .code-wrap {
             position: relative;
             margin: 10px 0;
-            text-align: left;
         }
         .code-wrap pre {
             margin: 0;
             padding: 12px 14px;
-            padding-top: 32px;
-            background-color: #111318;
-            border: 1px solid var(--line);
-            border-radius: 8px;
+            padding-top: 30px;
+            background-color: #0f0d09;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
             overflow-x: auto;
         }
         .code-wrap code {
             font-family: var(--mono);
             font-size: 13px;
-            color: #e6edf3;
+            color: var(--bright);
         }
+        .code-wrap pre::-webkit-scrollbar { height: 8px; }
+        .code-wrap pre::-webkit-scrollbar-track { background: transparent; }
+        .code-wrap pre::-webkit-scrollbar-thumb {
+            background: var(--faint);
+            border-radius: 4px;
+        }
+        .code-wrap pre::-webkit-scrollbar-thumb:hover { background: var(--dim); }
         .copy-btn {
             position: absolute;
-            top: 6px;
-            right: 6px;
-            padding: 3px 10px;
-            border: 1px solid var(--line);
-            border-radius: 5px;
-            background-color: var(--panel);
-            color: var(--muted);
+            top: 5px;
+            right: 5px;
+            padding: 2px 9px;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
+            background-color: transparent;
+            color: var(--dim);
             font-family: var(--mono);
             font-size: 11px;
             cursor: pointer;
+            transition: background-color 0.1s, color 0.1s;
         }
         .copy-btn:hover {
-            color: #14161a;
-            background-color: var(--amber);
-            border-color: var(--amber);
+            background-color: var(--phos);
+            border-color: var(--phos);
+            color: var(--bg);
         }
-        .build-output {
-            font-family: var(--mono);
-            font-size: 12.5px;
-        }
+        .build-output { font-size: 12.5px; color: var(--dim); }
+        .build-output.streaming::after { color: var(--bright); }
 
-        /* input row */
+        /* prompt line */
         #input-row {
-            border-top: 1px solid var(--line);
-            background-color: var(--panel);
-            padding: 14px 24px 16px;
+            border-top: 1px solid var(--faint);
+            padding: 12px 22px 14px;
         }
-        #input-inner { display: flex; gap: 8px; }
+        #input-inner { display: flex; gap: 8px; align-items: center; }
+        #prompt-sigil { color: var(--bright); text-shadow: var(--glow); }
         #mode, #template {
-            padding: 9px 8px;
-            border: 1px solid var(--line);
-            border-radius: 7px;
+            padding: 7px 6px;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
             background-color: var(--bg);
-            color: var(--muted);
+            color: var(--dim);
             font-family: var(--mono);
-            font-size: 12.5px;
+            font-size: 12px;
         }
         #user-input {
             flex: 1;
-            padding: 10px 14px;
-            border: 1px solid var(--line);
-            border-radius: 7px;
-            background-color: var(--bg);
-            color: var(--text);
-            font-size: 14.5px;
+            padding: 8px 10px;
+            border: 1px solid var(--faint);
+            border-radius: 3px;
+            background-color: transparent;
+            color: var(--bright);
+            font-family: var(--mono);
+            font-size: 14px;
+            caret-color: var(--phos);
         }
-        #user-input::placeholder { color: var(--muted); opacity: 0.7; }
+        #user-input::placeholder { color: var(--dim); opacity: 0.6; }
         #user-input:focus, #mode:focus, #template:focus, #send-button:focus-visible {
-            outline: 2px solid var(--amber);
+            outline: 1px solid var(--phos);
             outline-offset: 1px;
-            border-color: transparent;
         }
         #send-button {
-            padding: 10px 22px;
-            border: none;
-            border-radius: 7px;
-            background-color: var(--amber);
-            color: #14161a;
-            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid var(--phos);
+            border-radius: 3px;
+            background-color: transparent;
+            color: var(--phos);
+            font-family: var(--mono);
+            font-size: 13px;
             font-weight: 600;
+            letter-spacing: 0.06em;
             cursor: pointer;
+            transition: background-color 0.1s, color 0.1s;
         }
-        #send-button:hover { filter: brightness(1.08); }
-        #send-button:disabled { opacity: 0.5; cursor: default; }
+        #send-button:hover {
+            background-color: var(--phos);
+            color: var(--bg);
+            text-shadow: none;
+        }
+        #send-button:disabled { opacity: 0.45; cursor: default; }
 
         @media (max-width: 700px) {
-            #header { padding: 12px 16px; flex-wrap: wrap; gap: 6px; }
-            #messages-container { padding: 16px 12px 8px; }
+            #header { padding: 8px 12px; gap: 6px; }
+            #messages-container { padding: 14px 12px 8px; }
             #input-row { padding: 10px 12px 12px; }
-            .message { max-width: 92%; }
         }
         @media (prefers-reduced-motion: reduce) {
             #wordmark::before, .message.streaming::after { animation: none; }
+            .chip, .copy-btn, #send-button { transition: none; }
         }
     </style>
 </head>
 <body>
     <div id="header">
         <h1 id="wordmark">genai-coder</h1>
-        <span id="specplate">Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; local via Ollama</span>
+        <span id="specplate">tty1 &middot; Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; ollama:OK</span>
     </div>
     <div id="messages-container">
         <div id="messages-inner">
             <div id="empty-state">
-                Trained on nothing but current OpenAI &middot; Anthropic &middot; Ollama code. Try one:
+                <pre id="boot"></pre>
                 <div id="chips">
-                    <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">stream an OpenAI chat reply</button>
-                    <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">Claude tool calling</button>
-                    <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">Ollama embeddings</button>
-                    <button class="chip build" data-build="web">verified FastAPI endpoint</button>
+                    <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">[1] stream an openai chat reply</button>
+                    <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">[2] claude tool calling</button>
+                    <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
+                    <button class="chip build" data-build="web">verified fastapi endpoint</button>
                 </div>
             </div>
         </div>
     </div>
     <div id="input-row">
         <div id="input-inner">
+            <span id="prompt-sigil">&#10095;</span>
             <select id="mode">
-                <option value="chat">Chat</option>
-                <option value="build">Build</option>
+                <option value="chat">chat</option>
+                <option value="build">build</option>
             </select>
             <select id="template" style="display: none;">
                 <option value="">template&hellip;</option>
@@ -261,8 +282,8 @@
                 <option value="script">script + verify</option>
                 <option value="web">web endpoint</option>
             </select>
-            <input type="text" id="user-input" placeholder="Type a message..." />
-            <button id="send-button">Send</button>
+            <input type="text" id="user-input" placeholder="type a request..." />
+            <button id="send-button">[ SEND ]</button>
         </div>
     </div>
 
@@ -275,9 +296,51 @@
         const modeSelect = document.getElementById("mode");
         const templateSelect = document.getElementById("template");
 
+        // boot sequence: fast, once, real specs
+        const BOOT_LINES = [
+            ["GENAI-CODER BIOS v2.0", "ok"],
+            ["base ........ ", "", "Qwen2.5-Coder-7B-Instruct"],
+            ["adapter ..... ", "", "QLoRA r16 · 748 steps · loss 0.59"],
+            ["quant ....... ", "", "GGUF Q4_K_M · 4.7 GB"],
+            ["gpu ......... ", "", "RTX A2000 · 12 GB · 100% local"],
+            ["benchmark ... ", "", "SDK-currency 12% → 72%"],
+            ["link ........ ", "", "ollama @ 127.0.0.1:11434 [OK]"],
+            ["", ""],
+            ["READY. type a request, or pick a preset:", "ok"],
+        ];
+        const bootEl = document.getElementById("boot");
+        const chipsEl = document.getElementById("chips");
+        function bootLine(parts) {
+            const line = document.createElement("div");
+            if (parts[1] === "ok") line.className = "ok";
+            line.appendChild(document.createTextNode(parts[0]));
+            if (parts[2]) {
+                const v = document.createElement("span");
+                v.className = "val";
+                v.textContent = parts[2];
+                line.appendChild(v);
+            }
+            bootEl.appendChild(line);
+        }
+        const instantBoot = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (instantBoot) {
+            BOOT_LINES.forEach(bootLine);
+            chipsEl.classList.add("on");
+        } else {
+            let i = 0;
+            const t = setInterval(() => {
+                bootLine(BOOT_LINES[i]);
+                i += 1;
+                if (i >= BOOT_LINES.length) {
+                    clearInterval(t);
+                    chipsEl.classList.add("on");
+                }
+            }, 45);
+        }
+
         modeSelect.addEventListener("change", () => {
             const build = modeSelect.value === "build";
-            userInput.placeholder = build ? "Describe what to build..." : "Type a message...";
+            userInput.placeholder = build ? "describe what to build..." : "type a request...";
             templateSelect.style.display = build ? "" : "none";
         });
 
@@ -357,7 +420,7 @@
             userInput.value = "";
             streaming = true;
             aborter = new AbortController();
-            sendButton.textContent = "Stop";
+            sendButton.textContent = "[ STOP ]";
             userInput.disabled = true;
 
             let fullReply = "";
@@ -418,7 +481,7 @@
                 if (assistantBubble) assistantBubble.classList.remove("streaming");
                 streaming = false;
                 aborter = null;
-                sendButton.textContent = "Send";
+                sendButton.textContent = "[ SEND ]";
                 userInput.disabled = false;
                 userInput.focus();
             }
