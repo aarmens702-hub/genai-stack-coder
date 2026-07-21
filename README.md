@@ -45,6 +45,8 @@ Driven by `agent/agent.py`, **genai-coder wrote `demo/main.py` and `demo/index.h
 cd demo && python main.py   # then open http://127.0.0.1:8000
 ```
 
+**Build mode:** flip the selector next to the input from *Chat* to *Build* and describe something small ("a CLI that stores favorite quotes in a JSON file"). Instead of replying with code to copy-paste, the model runs the agent harness server-side — you watch its write/run/fix loop stream into the chat, and the finished files land in `workspace/<run>/`. (The chat UI stays model-written per above; the Build-mode wiring — the `/agent` endpoint and mode toggle — is human-written infrastructure.)
+
 It took 6 attempts to get there; the failures (and the harness fixes they forced) are catalogued in `docs/NOTES.md` — all of them agent-skill issues (JSON-escaping of file bodies, misread tracebacks), none of them SDK-currency issues. The app's FastAPI/requests/Ollama surfaces were current and correct on the first try.
 
 **v2** (current): the model then upgraded its own app — full-viewport dark chat UI with message bubbles, and real conversation memory (the full history flows through Ollama's `/api/chat`, so follow-ups have context). Four more harness rounds, catalogued in `docs/NOTES.md`; the model's final output was ~95% right and shipped with a disclosed **~15-line human patch** (sync generator + `stream=True`, one growing reply bubble instead of bubble-per-chunk, viewport flex). Ask it a follow-up question and it remembers — and being a code model, it usually answers in Python: asked for a remembered number, it replies `print(42)`.

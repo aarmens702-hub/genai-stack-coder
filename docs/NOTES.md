@@ -2,6 +2,12 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-20 — Build mode: the chat can now deploy code, not just print it
+
+- User pain: chat-only output means copy-paste. Fix: **Build mode** in the demo — a Chat/Build selector; Build POSTs the task to a new `/agent` endpoint that subprocesses `agent/agent.py` (`--max-iters 15`) into a fresh `workspace/<timestamp>-<slug>/` and streams the harness's stdout to the browser as plain text (same streaming path the chat uses; monospace bubble). Client disconnect kills the child via the generator's `finally`. This wiring is human-written (disclosed in README); the model remains the builder.
+- Live proofs: `quotes.py` CLI built in 6 iterations, zero errors (cleanest run yet — the accumulated harness guards pulling their weight); then `greet.py` through the web endpoint end-to-end.
+- `workspace/` gitignored (generated artifacts).
+
 ## 2026-07-20 — Benchmark retest: 70% reproduced; zero deprecated-API emissions
 
 - Fresh full 50-prompt run of `genai-coder` (same harness/system prompt): **35/50 (70%)** vs the July-16 run's 36/50 (72%) — aggregate stable; 9 prompts flipped in both directions (4 gained, 5 lost), normal temp-0.2 sampling variance.

@@ -41,6 +41,19 @@
         #user-input, #send-button {
             margin-left: auto;
         }
+        #mode {
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            margin-right: 8px;
+            background-color: #282c34;
+            color: #e6e6e6;
+            font-size: 16px;
+        }
+        .build-output {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+        }
         #user-input {
             flex: 1;
             padding: 8px 12px;
@@ -87,6 +100,10 @@
         <!-- Messages will be appended here -->
     </div>
     <div id="input-row">
+        <select id="mode">
+            <option value="chat">Chat</option>
+            <option value="build">Build</option>
+        </select>
         <input type="text" id="user-input" placeholder="Type a message..." />
         <button id="send-button">Send</button>
     </div>
@@ -95,13 +112,21 @@
         const userInput = document.getElementById("user-input");
         const sendButton = document.getElementById("send-button");
         const messagesContainer = document.getElementById("messages-container");
+        const modeSelect = document.getElementById("mode");
+
+        modeSelect.addEventListener("change", () => {
+            userInput.placeholder = modeSelect.value === "build"
+                ? "Describe what to build..."
+                : "Type a message...";
+        });
 
         let messages = [];
 
         async function sendMessage() {
             const text = userInput.value.trim();
             if (!text) return;
-            messages.push({ role: "user", content: text });
+            const mode = modeSelect.value;
+            if (mode === "chat") messages.push({ role: "user", content: text });
             renderMessage({ role: "user", content: text }, true);
 
             userInput.value = "";
@@ -109,10 +134,10 @@
             userInput.disabled = true;
 
             try {
-                const response = await fetch("/chat", {
+                const response = await fetch(mode === "build" ? "/agent" : "/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ messages })
+                    body: JSON.stringify(mode === "build" ? { task: text } : { messages })
                 });
 
                 if (!response.ok) {
@@ -125,6 +150,7 @@
 
                 const assistantBubble = document.createElement("div");
                 assistantBubble.classList.add("message", "assistant-message");
+                if (mode === "build") assistantBubble.classList.add("build-output");
                 messagesContainer.appendChild(assistantBubble);
 
                 while (true) {
@@ -136,7 +162,7 @@
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 }
 
-                messages.push({ role: "assistant", content: fullReply });
+                if (mode === "chat") messages.push({ role: "assistant", content: fullReply });
 
             } catch (error) {
                 console.error("Error sending message:", error);
