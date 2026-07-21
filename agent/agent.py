@@ -290,8 +290,26 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
         else:
             tool = action.get("tool")
             args = action.get("args") if isinstance(action.get("args"), dict) else {}
+            if tool == "done" and pending_write:
+                # refuse to finish while a write_file never got its file body
+                print(
+                    "[" + str(i) + "/" + str(max_iters) + "] done rejected:"
+                    " pending write_file for " + pending_write
+                )
+                obs = (
+                    "You are not done. write_file for " + pending_write + " never"
+                    " received its file content. Reply with ONE fenced code block"
+                    " containing the COMPLETE contents of " + pending_write
+                    + " and nothing else."
+                )
+                obs = truncate(obs, OBS_LIMIT)
+                print("  observation: " + obs.replace("\n", "\n  "))
+                messages.append({"role": "user", "content": "OBSERVATION:\n" + obs})
+                continue
             pending_write = None
-            if tool == "write_file" and "content" not in args:
+            if tool == "write_file" and not str(args.get("content", "")).strip():
+                # content missing or blank (some replies carry a stub "content"
+                # plus the real body in a fence) -- prefer the fenced block
                 fenced = fenced_content_after(reply, span_end)
                 if fenced is not None:
                     args["content"] = fenced
@@ -302,7 +320,8 @@ def run_agent(client, model, task, workdir, max_iters, temperature=TEMPERATURE):
             if tool == "done":
                 print("\n[done] " + str(args.get("message", "")))
                 return True
-            if tool == "write_file" and "content" not in args and args.get("path"):
+            if (tool == "write_file" and args.get("path")
+                    and not str(args.get("content", "")).strip()):
                 pending_write = str(args["path"])
                 obs = (
                     "write_file for " + pending_write + " received no file content."

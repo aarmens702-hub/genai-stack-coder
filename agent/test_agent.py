@@ -159,15 +159,16 @@ def test_write_without_content_prompts_for_fence():
     with tempfile.TemporaryDirectory() as wd:
         client = FakeClient([
             '{"tool": "write_file", "args": {"path": "app.py"}}',  # no fence, no content
+            '```python\npass\n```',                                # body after the prompt
             json.dumps({"tool": "done", "args": {"message": "d"}}),
         ])
         ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
         assert ok is True
-        assert not (Path(wd) / "app.py").exists()
         sent = client.last_kwargs["messages"]
         obs = [m["content"] for m in sent
                if m["role"] == "user" and m["content"].startswith("OBSERVATION:")]
         assert "received no file content" in obs[0]
+        assert (Path(wd) / "app.py").read_text(encoding="utf-8") == "pass\n"
 
 
 def test_split_fenced_write():
@@ -186,6 +187,35 @@ def test_split_fenced_write():
         obs = [m["content"] for m in sent
                if m["role"] == "user" and m["content"].startswith("OBSERVATION:")]
         assert "Wrote" in obs[1]
+
+
+def test_blank_content_prefers_fence():
+    """A stub "content" like "\\r\\n" must not clobber the fenced body."""
+    with tempfile.TemporaryDirectory() as wd:
+        client = FakeClient([
+            '{"tool": "write_file", "args": {"path": "a.py", "content": "\\r\\n"}}\n'
+            '```python\nx = 1\n```',
+            json.dumps({"tool": "done", "args": {"message": "d"}}),
+        ])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=5)
+        assert ok is True
+        written = (Path(wd) / "a.py").read_text(encoding="utf-8")
+        assert written == "x = 1\n"
+
+
+def test_done_rejected_while_write_pending():
+    with tempfile.TemporaryDirectory() as wd:
+        client = FakeClient([
+            '{"tool": "write_file", "args": {"path": "a.py"}}',   # no body yet
+            '{"tool": "done", "args": {"message": "premature"}}',  # must be vetoed
+            '```python\nx = 2\n```',                               # the body arrives
+            json.dumps({"tool": "done", "args": {"message": "d"}}),
+        ])
+        ok = agent.run_agent(client, "fake-model", "write it", wd, max_iters=6)
+        assert ok is True
+        assert client.calls == 4
+        written = (Path(wd) / "a.py").read_text(encoding="utf-8")
+        assert written == "x = 2\n"
 
 
 def test_repeated_write_warns():
@@ -225,6 +255,8 @@ TESTS = [
     test_fenced_write,
     test_write_without_content_prompts_for_fence,
     test_split_fenced_write,
+    test_blank_content_prefers_fence,
+    test_done_rejected_while_write_pending,
     test_repeated_write_warns,
     test_truncation,
 ]

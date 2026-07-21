@@ -2,6 +2,17 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-20 — Finale v2: real chat UI + conversation memory (agent + disclosed 15-line patch)
+
+- v1 was functionally right but visually bare and stateless (its spec asked for minimal). v2 task (`agent/demo_task_v2.md`): full-viewport dark chat UI with bubbles + full-history backend on `/api/chat`. Four agent rounds; each exposed a new generic harness gap (tests now 18/18):
+  - **Stub-content clobber:** replies carried `"content": "\r\n"` in the JSON plus the real body in a fence — and the stub won, gutting both files. Fix: blank JSON content defers to the fenced block.
+  - **False success:** `Select-String` with no match still exits 0 in PowerShell, so "must match" gates had no teeth — the model "verified" gutted files and finished. Fix: if/throw verify commands in the spec.
+  - **Premature done:** declared done while index.html's body was still pending. Fix: harness vetoes done while any write_file awaits content.
+  - **Runtime-invisible inventions:** round 3 conjured `httpx` + `OLLAMA_API_KEY` (import passes; NameError only at request time — grep gates can't see runtime wiring). Round 4 spec: exact import list, httpx banned, literal input-row HTML with prescribed element ids.
+- Round 4 was ~95% correct. Hand-patched (disclosed in README): `stream=True` kwarg + de-async the generator (`requests` is sync — `async for` over `iter_lines()` is a TypeError), one growing assistant bubble instead of bubble-per-chunk, `body` flex/100vh so the messages pane scrolls. Also normalized the model's CRLF fences to LF.
+- Verified end-to-end: page serves; turn 1 streamed 22 incremental chunks; turn 2 with history recalled the remembered number — as code, naturally: `print(42)`.
+- Meta-lesson: text-grep verification saturates fast; the residual bugs were all runtime-wiring class. Next lever if this continued: give the harness a run-the-server-and-curl verify tool, not more greps.
+
 ## 2026-07-20 — Phases 7+8 COMPLETE: the model built its own chat app (attempt 6)
 
 - Finale run: **7 iterations** — write main.py, write index.html, `python -c "import main"` exit 0, `Select-String getReader` match, done. My end-to-end check: GET / → 200 with the model's page; POST /chat → 200 streaming **40 per-token chunks** (+2.73s…+3.65s). The app genai-coder wrote serves genai-coder.
