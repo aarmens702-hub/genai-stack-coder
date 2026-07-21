@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -15,6 +16,43 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # configuration the 12%->72% numbers were measured under.
 with open(os.path.join(REPO, "scripts", "system_prompt.txt"), encoding="utf-8") as _f:
     SYSTEM_PROMPT = _f.read().strip()
+
+# For messages that are conversation, not code requests. Absolute wording on
+# purpose: softer variants ("avoid code unless...") still yield code.
+CHAT_PLAIN_PROMPT = (
+    "You are a helpful assistant chatting with a user. Answer in concise plain"
+    " English prose. Never output code, code blocks, or programming examples."
+)
+
+# Deterministic override: mentions of the product's domain always take the
+# code path, because the 1-token classifier misses terse imperatives like
+# "stream tokens from ollama".
+SDK_HINT = re.compile(r"\b(openai|anthropic|claude|ollama|gpt|sdk|api)\b", re.IGNORECASE)
+
+
+def wants_code(text):
+    """True if the message asks for code: 1-token model classify + SDK-keyword
+    override. Defaults to True (the product's specialty) on any failure."""
+    try:
+        r = requests.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "genai-coder",
+                "messages": [
+                    {"role": "system", "content": "You are a classifier. Answer with exactly one word: yes or no."},
+                    {"role": "user", "content": "Does the following message ask for programming code, a script, API/SDK usage, or a technical implementation?\n\nMESSAGE: " + text},
+                ],
+                "stream": False,
+                "options": {"temperature": 0, "num_predict": 3},
+            },
+            timeout=30,
+        )
+        if r.json()["message"]["content"].strip().lower().startswith("yes"):
+            return True
+    except Exception:
+        return True
+    return bool(SDK_HINT.search(text))
+
 
 # Appended to every Build task: the discipline rules learned from live runs.
 TASK_EPILOGUE = """
@@ -40,7 +78,9 @@ async def get_index(request: Request):
 @app.post("/chat")
 async def post_chat(request: Request):
     body = await request.json()
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + body["messages"]
+    last_user = next((m["content"] for m in reversed(body["messages"]) if m.get("role") == "user"), "")
+    system = SYSTEM_PROMPT if wants_code(last_user) else CHAT_PLAIN_PROMPT
+    messages = [{"role": "system", "content": system}] + body["messages"]
     
     response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True}, stream=True)
 

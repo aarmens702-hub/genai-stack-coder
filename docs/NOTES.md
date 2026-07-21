@@ -2,6 +2,13 @@
 
 Running log of decisions and findings. Newest first.
 
+## 2026-07-21 — Chat intent routing: semantic questions get prose, not code
+
+- User pain: every conversational message ("what's my favorite number") got SDK code back — worsened by the benchmark system prompt I'd just wired into `/chat` ("always use current APIs" turns everything into an API demo). Also fixed en route: stopping a reply left the user turn unanswered in history, and the model kept re-fulfilling that dangling request on every later turn (`e1e85ce`).
+- Experiments (all against local Ollama): soft plain-prompt ("do NOT write code unless…") fixed pure-knowledge questions but NOT conversational recall (still emitted an `input()` program); an absolute prompt ("Never output code…") fixed recall too. 1-token yes/no classification by genai-coder: 9/10, but misses terse imperatives ("call claude with a weather tool", "stream tokens from ollama") even after prompt tightening. Both 7Bs fit GPU-resident simultaneously (9.4/12 GB), so base-model routing was viable but unnecessary.
+- Shipped: `/chat` classifies the last user message (1-token call, temp 0, default-to-code on failure) OR'd with an SDK-keyword regex override (openai|anthropic|claude|ollama|gpt|sdk|api → always code path). Code path keeps the benchmark system prompt; chat path uses the absolute plain-English prompt. E2E: recall answers "Your favorite number is 42.", sky-question answers prose, OpenAI streaming question answers current-API code, terse ollama imperative routes to code via override.
+- Deeper fix if wanted later: mixed retrain with permissively-licensed human chat data (e.g. OASST) for native conversational ability — overnight GPU run, needs a re-eval gate on the 72%.
+
 ## 2026-07-21 — Improvement pass: check_http runtime verification + chat polish
 
 - **Harness `check_http` tool** (the "run-the-server-and-curl" lever flagged on 07-20): starts a server command, polls its localhost URL (15s), returns HTTP status + body head, then taskkills the process tree. Denylist applies; non-localhost URLs rejected. Tests 21/21 (happy path boots a real `http.server`). Proven end-to-end through Build mode: model wrote a FastAPI app and verified it with check_http in 4 steps — first *runtime-verified* web app.
