@@ -92,16 +92,60 @@
         }
         #messages-container::-webkit-scrollbar-thumb:hover { background: var(--dim); }
 
+        /* the terminal window */
+        #term-box {
+            position: fixed;
+            left: 50%;
+            top: 13%;
+            transform: translateX(-50%);
+            width: 660px;
+            max-width: 94vw;
+            background-color: var(--bg);
+            border: 4px double var(--faint);
+            box-shadow: 0 0 30px rgba(255, 176, 0, 0.06);
+            z-index: 5;
+            transition: left 0.4s ease, top 0.4s ease, width 0.4s ease, transform 0.4s ease;
+            animation: term-open 0.3s ease-out;
+            transform-origin: center center;
+        }
+        @keyframes term-open {
+            0% { transform: translateX(-50%) scale(1, 0.04); opacity: 0.4; }
+            60% { transform: translateX(-50%) scale(1, 1.02); opacity: 1; }
+            100% { transform: translateX(-50%) scale(1, 1); }
+        }
+        #term-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 12px;
+            border-bottom: 1px solid var(--faint);
+            color: var(--dim);
+            font-size: 16px;
+            letter-spacing: 0.04em;
+            user-select: none;
+        }
+        #term-glyphs { color: var(--faint); }
+        #term-body { padding: 14px 20px 18px; }
+        #term-box.docked {
+            left: calc(100vw - 420px);
+            top: 62px;
+            width: 400px;
+            transform: none;
+        }
+        #term-box.docked #chips { display: none; }
+        #term-box.docked #boot { font-size: 15px; }
+        #term-box.docked #term-body { padding: 10px 14px 12px; }
+        body.docked #messages-container { padding-right: 440px; }
+        @media (max-width: 1100px) {
+            #term-box.docked { display: none; }
+            body.docked #messages-container { padding-right: 22px; }
+        }
         #boot {
-            margin: 4vh 0 0;
+            margin: 0;
             font-size: 19px;
             color: var(--dim);
             white-space: pre-wrap;
             text-shadow: var(--glow);
-            display: inline-block;
-            border: 4px double var(--faint);
-            padding: 14px 22px 16px;
-            min-width: 560px;
         }
         #boot .ok { color: var(--phos); }
         #boot .val { color: var(--bright); }
@@ -283,19 +327,24 @@
         <span id="specplate">tty1 &middot; Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; ollama:OK</span>
         <button id="sound-toggle" title="boot chime">[&#9834; on]</button>
     </div>
-    <div id="messages-container">
-        <div id="messages-inner">
-            <div id="empty-state">
-                <pre id="boot"></pre>
-                <div id="chips">
-                    <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">[1] stream an openai chat reply</button>
-                    <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">[2] claude tool calling</button>
-                    <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
-                    <button class="chip build" data-build="web">verified fastapi endpoint</button>
-                </div>
-                <canvas id="snake" width="336" height="120"></canvas>
-            </div>
+    <div id="term-box">
+        <div id="term-title">
+            <span>genai-coder.exe</span>
+            <span id="term-glyphs">&#9472;&nbsp;&#9633;&nbsp;&#215;</span>
         </div>
+        <div id="term-body">
+            <pre id="boot"></pre>
+            <div id="chips">
+                <button class="chip" data-fill="Write Python code to stream a chat response from the OpenAI API">[1] stream an openai chat reply</button>
+                <button class="chip" data-fill="Call Claude with a weather tool and handle the tool_use reply">[2] claude tool calling</button>
+                <button class="chip" data-fill="Get embeddings from Ollama and cosine-compare two sentences">[3] ollama embeddings</button>
+                <button class="chip build" data-build="web">verified fastapi endpoint</button>
+            </div>
+            <canvas id="snake" width="336" height="120"></canvas>
+        </div>
+    </div>
+    <div id="messages-container">
+        <div id="messages-inner"></div>
     </div>
     <div id="input-row">
         <div id="input-inner">
@@ -320,7 +369,7 @@
         const sendButton = document.getElementById("send-button");
         const messagesContainer = document.getElementById("messages-container");
         const messagesInner = document.getElementById("messages-inner");
-        const emptyState = document.getElementById("empty-state");
+        const termBox = document.getElementById("term-box");
         const modeSelect = document.getElementById("mode");
         const templateSelect = document.getElementById("template");
 
@@ -356,15 +405,18 @@
             BOOT_LINES.forEach(bootLine);
             chipsEl.classList.add("on");
         } else {
-            let i = 0;
-            const t = setInterval(() => {
-                bootLine(BOOT_LINES[i]);
-                i += 1;
-                if (i >= BOOT_LINES.length) {
-                    clearInterval(t);
-                    chipsEl.classList.add("on");
-                }
-            }, 45);
+            // let the window finish its opening animation, then boot
+            setTimeout(() => {
+                let i = 0;
+                const t = setInterval(() => {
+                    bootLine(BOOT_LINES[i]);
+                    i += 1;
+                    if (i >= BOOT_LINES.length) {
+                        clearInterval(t);
+                        chipsEl.classList.add("on");
+                    }
+                }, 45);
+            }, 320);
         }
 
         // boot chime: an ORIGINAL synthesized swell (the real Windows chime is
@@ -609,9 +661,11 @@
         }
 
         function renderMessage(message, isUser) {
-            if (emptyState.style.display !== "none") {
-                emptyState.style.display = "none";
-                if (snakeTimer) { clearInterval(snakeTimer); snakeTimer = null; }
+            if (!termBox.classList.contains("docked")) {
+                // first prompt: the terminal window glides to the right and
+                // stays as a status panel (snake included)
+                termBox.classList.add("docked");
+                document.body.classList.add("docked");
             }
             const { role, content } = message;
 
