@@ -20,8 +20,8 @@ with open(os.path.join(REPO, "scripts", "system_prompt.txt"), encoding="utf-8") 
 # For messages that are conversation, not code requests. Absolute wording on
 # purpose: softer variants ("avoid code unless...") still yield code.
 CHAT_PLAIN_PROMPT = (
-    "You are a helpful assistant chatting with a user. Answer in concise plain"
-    " English prose. Never output code, code blocks, or programming examples."
+    "You are a helpful assistant chatting with a user. Reply with short plain"
+    " English sentences. Never output code, code blocks, or programming examples."
 )
 
 # Deterministic override: mentions of the product's domain always take the
@@ -82,7 +82,7 @@ async def post_chat(request: Request):
     system = SYSTEM_PROMPT if wants_code(last_user) else CHAT_PLAIN_PROMPT
     messages = [{"role": "system", "content": system}] + body["messages"]
     
-    response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True}, stream=True)
+    response = requests.post("http://localhost:11434/api/chat", json={"model": "genai-coder", "messages": messages, "stream": True, "options": {"temperature": 0.2}}, stream=True)
 
     def stream_response(resp):
         for line in resp.iter_lines():
