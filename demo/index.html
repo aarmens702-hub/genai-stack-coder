@@ -5,71 +5,130 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>genai-coder</title>
     <style>
+        :root {
+            --bg: #14161a;
+            --panel: #1c1f26;
+            --line: #2a2e37;
+            --text: #e8e6e1;
+            --muted: #9094a6;
+            --amber: #e8a13c;
+            --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+            --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+        }
+        * { box-sizing: border-box; }
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #0f1115;
-            color: #e6e6e6;
+            font-family: var(--sans);
+            background-color: var(--bg);
+            color: var(--text);
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
+
+        /* header: the spec plate */
         #header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 24px;
-            background-color: #161a22;
+            align-items: baseline;
+            gap: 14px;
+            padding: 14px 28px;
+            border-bottom: 1px solid var(--line);
+            background-color: var(--panel);
         }
-        #header h1 {
+        #wordmark {
+            font-family: var(--mono);
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
             margin: 0;
-            font-size: 22px;
-            color: #ffffff;
         }
+        #wordmark::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--amber);
+            margin-right: 9px;
+            vertical-align: 1px;
+            animation: pulse 2.4s ease-in-out infinite;
+        }
+        #specplate {
+            font-family: var(--mono);
+            font-size: 11.5px;
+            color: var(--muted);
+            letter-spacing: 0.02em;
+        }
+        #specplate b { color: var(--amber); font-weight: 600; }
+        @keyframes pulse { 50% { opacity: 0.35; } }
+
+        /* messages */
         #messages-container {
             flex: 1;
             overflow-y: auto;
-            padding: 24px;
-            background-color: #161a22;
+            padding: 28px 24px 16px;
         }
-        #input-row {
-            display: flex;
-            border-top: 1px solid #333;
-            padding-top: 12px;
-            background-color: #161a22;
+        #messages-inner, #input-inner {
+            max-width: 860px;
+            margin: 0 auto;
         }
-        #user-input, #send-button {
+        #empty-state {
+            margin-top: 9vh;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        #empty-state .hint {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--muted);
+            opacity: 0.75;
+        }
+        .message {
+            max-width: 78%;
+            margin: 10px 0;
+            padding: 10px 14px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.55;
+            font-size: 14.5px;
+            border: 1px solid transparent;
+        }
+        .user-message {
+            background-color: #262b35;
             margin-left: auto;
         }
-        #mode {
-            padding: 8px;
-            border: none;
-            border-radius: 4px;
-            margin-right: 8px;
-            background-color: #282c34;
-            color: #e6e6e6;
-            font-size: 16px;
+        .assistant-message {
+            background-color: var(--panel);
+            border-color: var(--line);
+            margin-right: auto;
         }
-        .build-output {
-            font-family: Consolas, "Courier New", monospace;
-            font-size: 13px;
+        .message.streaming::after {
+            content: "\258D";
+            color: var(--amber);
+            animation: blink 1s steps(1) infinite;
         }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* code blocks */
         .code-wrap {
             position: relative;
-            margin: 8px 0;
+            margin: 10px 0;
             text-align: left;
         }
         .code-wrap pre {
             margin: 0;
-            padding: 10px 12px;
-            padding-top: 30px;
-            background-color: #0d1117;
-            border: 1px solid #30363d;
+            padding: 12px 14px;
+            padding-top: 32px;
+            background-color: #111318;
+            border: 1px solid var(--line);
             border-radius: 8px;
             overflow-x: auto;
         }
         .code-wrap code {
-            font-family: Consolas, "Courier New", monospace;
+            font-family: var(--mono);
             font-size: 13px;
             color: #e6edf3;
         }
@@ -77,90 +136,116 @@
             position: absolute;
             top: 6px;
             right: 6px;
-            padding: 2px 10px;
-            border: none;
-            border-radius: 4px;
-            background-color: #282c34;
-            color: #e6e6e6;
-            font-size: 12px;
+            padding: 3px 10px;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            background-color: var(--panel);
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 11px;
             cursor: pointer;
         }
         .copy-btn:hover {
-            background-color: #2b5cd9;
+            color: #14161a;
+            background-color: var(--amber);
+            border-color: var(--amber);
         }
-        #template {
-            padding: 8px;
-            border: none;
-            border-radius: 4px;
-            margin-right: 8px;
-            background-color: #282c34;
-            color: #e6e6e6;
-            font-size: 16px;
+        .build-output {
+            font-family: var(--mono);
+            font-size: 12.5px;
+        }
+
+        /* input row */
+        #input-row {
+            border-top: 1px solid var(--line);
+            background-color: var(--panel);
+            padding: 14px 24px 16px;
+        }
+        #input-inner { display: flex; gap: 8px; }
+        #mode, #template {
+            padding: 9px 8px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            background-color: var(--bg);
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 12.5px;
         }
         #user-input {
             flex: 1;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px 0 0 4px;
-            background-color: #2b5cd9;
-            color: #ffffff;
-            font-size: 16px;
+            padding: 10px 14px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            background-color: var(--bg);
+            color: var(--text);
+            font-size: 14.5px;
+        }
+        #user-input::placeholder { color: var(--muted); opacity: 0.7; }
+        #user-input:focus, #mode:focus, #template:focus, #send-button:focus-visible {
+            outline: 2px solid var(--amber);
+            outline-offset: 1px;
+            border-color: transparent;
         }
         #send-button {
-            padding: 8px 16px;
+            padding: 10px 22px;
             border: none;
-            border-radius: 0 4px 4px 0;
-            background-color: #32da5f;
-            color: #ffffff;
-            font-size: 16px;
+            border-radius: 7px;
+            background-color: var(--amber);
+            color: #14161a;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
         }
-        .message {
-            margin: 8px 0;
-            max-width: 75%;
-            border-radius: 12px;
-            padding: 8px 12px;
-            white-space: pre-wrap;
+        #send-button:hover { filter: brightness(1.08); }
+        #send-button:disabled { opacity: 0.5; cursor: default; }
+
+        @media (max-width: 700px) {
+            #header { padding: 12px 16px; flex-wrap: wrap; gap: 6px; }
+            #messages-container { padding: 16px 12px 8px; }
+            #input-row { padding: 10px 12px 12px; }
+            .message { max-width: 92%; }
         }
-        .user-message {
-            background-color: #2b5cd9;
-            text-align: right;
-            margin-left: auto;
-        }
-        .assistant-message {
-            background-color: #1e2128;
-            text-align: left;
-            margin-right: auto;
+        @media (prefers-reduced-motion: reduce) {
+            #wordmark::before, .message.streaming::after { animation: none; }
         }
     </style>
 </head>
 <body>
     <div id="header">
-        <h1>genai-coder</h1>
-        <span style="font-size: 14px; color: #999;">local 7B fine-tune, streaming via Ollama</span>
+        <h1 id="wordmark">genai-coder</h1>
+        <span id="specplate">Qwen2.5-Coder-7B &middot; QLoRA &middot; RTX A2000 &middot; SDK-currency <b>12% &rarr; 72%</b> &middot; local via Ollama</span>
     </div>
     <div id="messages-container">
-        <!-- Messages will be appended here -->
+        <div id="messages-inner">
+            <div id="empty-state">
+                Ask for current OpenAI, Anthropic, or Ollama code &mdash; it was trained on nothing else.<br>
+                <span class="hint">or flip Chat &rarr; Build and it writes, runs, and verifies the files itself</span>
+            </div>
+        </div>
     </div>
     <div id="input-row">
-        <select id="mode">
-            <option value="chat">Chat</option>
-            <option value="build">Build</option>
-        </select>
-        <select id="template" style="display: none;">
-            <option value="">template&hellip;</option>
-            <option value="cli">CLI tool</option>
-            <option value="script">script + verify</option>
-            <option value="web">web endpoint</option>
-        </select>
-        <input type="text" id="user-input" placeholder="Type a message..." />
-        <button id="send-button">Send</button>
+        <div id="input-inner">
+            <select id="mode">
+                <option value="chat">Chat</option>
+                <option value="build">Build</option>
+            </select>
+            <select id="template" style="display: none;">
+                <option value="">template&hellip;</option>
+                <option value="cli">CLI tool</option>
+                <option value="script">script + verify</option>
+                <option value="web">web endpoint</option>
+            </select>
+            <input type="text" id="user-input" placeholder="Type a message..." />
+            <button id="send-button">Send</button>
+        </div>
     </div>
 
     <script>
         const userInput = document.getElementById("user-input");
         const sendButton = document.getElementById("send-button");
         const messagesContainer = document.getElementById("messages-container");
+        const messagesInner = document.getElementById("messages-inner");
+        const emptyState = document.getElementById("empty-state");
         const modeSelect = document.getElementById("mode");
         const templateSelect = document.getElementById("template");
 
@@ -173,7 +258,7 @@
         const TEMPLATES = {
             cli: 'Create tool.py, a CLI using only the Python standard library. Usage: python tool.py <args>. It must <describe behavior>. Wrong usage prints a usage line and exits with code 1. Verify by running: python tool.py <example> (expect <output>). Fix and re-verify on any failure, then use done.',
             script: 'Create run.py that <does X> and prints <expected output>. Verify by running python run.py and checking the output. Fix and re-verify on any failure, then use done.',
-            web: 'Create app.py, a FastAPI app where GET / returns the JSON {"status": "ok"}. Imports: from fastapi import FastAPI, and import uvicorn. At the bottom add: if __name__ == "__main__": uvicorn.run(app, host="127.0.0.1", port=8123). Never run app.py with run_command; verify ONLY with the check_http tool using cmd "python app.py" and url "http://127.0.0.1:8123/". Then use done.'
+            web: 'Create app.py, a FastAPI app where GET / returns the JSON {"status": "ok"}. Imports: from fastapi import FastAPI, and import uvicorn. The app has exactly one route and returns JSON only - no HTML, no forms. At the bottom add: if __name__ == "__main__": uvicorn.run(app, host="127.0.0.1", port=8123). Never run app.py with run_command; verify ONLY with the check_http tool using cmd "python app.py" and url "http://127.0.0.1:8123/". Then use done.'
         };
         templateSelect.addEventListener("change", () => {
             if (TEMPLATES[templateSelect.value]) {
@@ -235,6 +320,7 @@
             userInput.disabled = true;
 
             let fullReply = "";
+            let assistantBubble = null;
             try {
                 const response = await fetch(mode === "build" ? "/agent" : "/chat", {
                     method: "POST",
@@ -250,10 +336,10 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
 
-                const assistantBubble = document.createElement("div");
-                assistantBubble.classList.add("message", "assistant-message");
+                assistantBubble = document.createElement("div");
+                assistantBubble.classList.add("message", "assistant-message", "streaming");
                 if (mode === "build") assistantBubble.classList.add("build-output");
-                messagesContainer.appendChild(assistantBubble);
+                messagesInner.appendChild(assistantBubble);
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -285,9 +371,10 @@
                 const note = document.createElement("div");
                 note.classList.add("message", "assistant-message");
                 note.textContent = stopped ? "[stopped]" : "[error: " + error.message + "]";
-                messagesContainer.appendChild(note);
+                messagesInner.appendChild(note);
                 if (!stopped) console.error("Error sending message:", error);
             } finally {
+                if (assistantBubble) assistantBubble.classList.remove("streaming");
                 streaming = false;
                 aborter = null;
                 sendButton.textContent = "Send";
@@ -297,6 +384,7 @@
         }
 
         function renderMessage(message, isUser) {
+            if (emptyState.style.display !== "none") emptyState.style.display = "none";
             const { role, content } = message;
 
             const messageElement = document.createElement("div");
@@ -309,7 +397,7 @@
             }
 
             messageElement.textContent = content;
-            messagesContainer.appendChild(messageElement);
+            messagesInner.appendChild(messageElement);
 
             // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -328,6 +416,8 @@
                 sendMessage();
             }
         });
+
+        userInput.focus();
     </script>
 </body>
 </html>
